@@ -102,7 +102,7 @@ const studentSchema = z.object({
 });
 
 type FormValues = z.infer<typeof studentSchema>;
-type StudentFormValues = FormValues & { photo?: string };
+type StudentFormValues = FormValues & { photo: string | undefined };
 const initials = (name: string) => name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 const performance = (score: number) => score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "average" : "attention";
 const gradeFor = (score: number) => score >= 85 ? "A+" : score >= 80 ? "A" : score >= 70 ? "B+" : score >= 60 ? "C+" : score >= 50 ? "C" : "D";
@@ -152,7 +152,7 @@ function StudentManagementApp() {
           <Dashboard students={students} visible={visible} query={query} setQuery={setQuery} course={course} setCourse={setCourse} batch={batch} setBatch={setBatch} status={status} setStatus={setStatus} dark={dark} setDark={setDark} onAdd={openAdd} onSelect={setSelectedId} onUpload={() => fileRef.current?.click()} uploadMessage={uploadMessage} />
         )}
         <input ref={fileRef} className="hidden" type="file" accept=".csv" onChange={(event) => { const name = event.target.files?.[0]?.name; setUploadMessage(name ? `${name} ready to import` : ""); }} />
-        <StudentModal open={modalOpen} onOpenChange={setModalOpen} student={students.find((s) => s.id === editingId)} onSave={save} />
+        <StudentModal key={`${editingId ?? "new"}-${modalOpen}`} open={modalOpen} onOpenChange={setModalOpen} student={students.find((s) => s.id === editingId)} onSave={save} />
       </main>
     </div>
   );
@@ -256,14 +256,14 @@ function StudentModal({ open, onOpenChange, student, onSave }: { open: boolean; 
   function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setErrors((current) => ({ ...current, photo: "Choose a valid image file" })); return; }
+    if (!file.type.startsWith("image/")) { setErrors((current) => ({ ...current, ["photo"]: "Choose a valid image file" })); return; }
     const reader = new FileReader();
-    reader.onload = () => { if (typeof reader.result === "string") { setPhoto(reader.result); setErrors((current) => { const next = { ...current }; delete next.photo; return next; }); } };
+    reader.onload = () => { if (typeof reader.result === "string") { setPhoto(reader.result); setErrors((current) => { const next = { ...current }; delete next["photo"]; return next; }); } };
     reader.readAsDataURL(file);
   }
   const key = `${student?.id ?? "new"}-${open}`;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent key={key} className="max-h-[92vh] max-w-3xl overflow-y-auto bg-card p-0"><DialogHeader className="border-b border-border px-6 py-5"><DialogTitle>{student ? "Edit student record" : "Add new student"}</DialogTitle><DialogDescription>Update the student and guardian information used in presentations.</DialogDescription></DialogHeader><form className="grid gap-4 px-6 py-5 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget)); delete data.photoFile; const parsed = studentSchema.safeParse(data); if (!parsed.success) { setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))); return; } setErrors({}); onSave({ ...parsed.data, photo }); }}>
-    <label className="photo-upload-field sm:col-span-2"><span>Student photo</span><div className="flex items-center gap-4">{photo ? <img src={photo} alt="Student photo preview" className="photo-preview" /> : <div className="photo-preview-placeholder"><CircleUserRound /></div>}<div className="min-w-0 flex-1"><input name="photoFile" type="file" accept="image/*" onChange={choosePhoto}/><p>Choose a clear portrait image</p>{errors.photo && <small>{errors.photo}</small>}</div></div></label>
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent key={key} className="max-h-[92vh] max-w-3xl overflow-y-auto bg-card p-0"><DialogHeader className="border-b border-border px-6 py-5"><DialogTitle>{student ? "Edit student record" : "Add new student"}</DialogTitle><DialogDescription>Update the student and guardian information used in presentations.</DialogDescription></DialogHeader><form className="grid gap-4 px-6 py-5 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget)); delete data["photoFile"]; const parsed = studentSchema.safeParse(data); if (!parsed.success) { setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))); return; } setErrors({}); onSave({ ...parsed.data, photo }); }}>
+    <label className="photo-upload-field sm:col-span-2"><span>Student photo</span><div className="flex items-center gap-4">{photo ? <img src={photo} alt="Student photo preview" className="photo-preview" /> : <div className="photo-preview-placeholder"><CircleUserRound /></div>}<div className="min-w-0 flex-1"><input name="photoFile" type="file" accept="image/*" onChange={choosePhoto}/><p>Choose a clear portrait image</p>{errors["photo"] && <small>{errors["photo"]}</small>}</div></div></label>
     {[["name", "Student name", student?.name, "text"], ["id", "Student ID", student?.id, "text"], ["course", "Course", student?.course, "text"], ["father", "Father's name", student?.father, "text"], ["phone", "Phone", student?.phone, "tel"], ["address", "Address", student?.address, "text"], ["score", "Overall marks (%)", student?.score, "number"], ["attendance", "Attendance (%)", student?.attendance, "number"]].map(([name, label, value, type]) => <label className="form-field" key={String(name)}><span>{label}</span><input name={String(name)} type={String(type)} defaultValue={value} maxLength={type === "text" ? 140 : undefined} min={type === "number" ? 0 : undefined} max={type === "number" ? 100 : undefined}/>{errors[String(name)] && <small>{errors[String(name)]}</small>}</label>)}
     <label className="form-field sm:col-span-2"><span>Instructor remarks</span><textarea name="remarks" defaultValue={student?.remarks} rows={4} maxLength={500}/>{errors["remarks"] && <small>{errors["remarks"]}</small>}</label>
     <DialogFooter className="sm:col-span-2 mt-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit"><Check/> Save Student Record</Button></DialogFooter>

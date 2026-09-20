@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { z } from "zod";
 import {
   ArrowLeft,
@@ -56,7 +56,7 @@ type Student = {
   id: string; name: string; course: string; courseKey: string; batch: string;
   father: string; phone: string; address: string; school: string; prior: string;
   score: number; grade: string; attendance: number; status: string; remarks: string;
-  weekly: Exam[]; monthly: Exam[];
+  weekly: Exam[]; monthly: Exam[]; photo?: string;
 };
 
 const studentsSeed: Student[] = [
@@ -102,6 +102,7 @@ const studentSchema = z.object({
 });
 
 type FormValues = z.infer<typeof studentSchema>;
+type StudentFormValues = FormValues & { photo: string | undefined };
 const initials = (name: string) => name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 const performance = (score: number) => score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "average" : "attention";
 const gradeFor = (score: number) => score >= 85 ? "A+" : score >= 80 ? "A" : score >= 70 ? "B+" : score >= 60 ? "C+" : score >= 50 ? "C" : "D";
@@ -130,14 +131,16 @@ function StudentManagementApp() {
 
   function openAdd() { setEditingId(null); setModalOpen(true); }
   function openEdit(id: string) { setEditingId(id); setModalOpen(true); }
-  function save(values: FormValues) {
+  function save(values: StudentFormValues) {
+    const { photo, ...recordValues } = values;
+    const photoValues = photo ? { photo } : {};
     if (editingId) {
-      setStudents((items) => items.map((s) => s.id === editingId ? { ...s, ...values, grade: gradeFor(values.score), status: statusFor(values.score) } : s));
+      setStudents((items) => items.map((s) => s.id === editingId ? { ...s, ...recordValues, ...photoValues, grade: gradeFor(values.score), status: statusFor(values.score) } : s));
     } else {
       const key = values.course.toLowerCase().includes("python") ? "Python" : values.course.toLowerCase().includes("design") ? "Graphic Design" : values.course.toLowerCase().includes("web") ? "Web Dev" : "MDCT";
       const template = studentsSeed[0];
       if (!template) return;
-      setStudents((items) => [...items, { ...template, ...values, courseKey: key, batch: "2025", grade: gradeFor(values.score), status: statusFor(values.score), school: "Not provided", prior: "Not provided" }]);
+      setStudents((items) => [...items, { ...template, ...recordValues, ...photoValues, courseKey: key, batch: "2025", grade: gradeFor(values.score), status: statusFor(values.score), school: "Not provided", prior: "Not provided" }]);
     }
     setModalOpen(false);
   }
@@ -151,7 +154,7 @@ function StudentManagementApp() {
           <Dashboard students={students} visible={visible} query={query} setQuery={setQuery} course={course} setCourse={setCourse} batch={batch} setBatch={setBatch} status={status} setStatus={setStatus} dark={dark} setDark={setDark} onAdd={openAdd} onSelect={setSelectedId} onUpload={() => fileRef.current?.click()} uploadMessage={uploadMessage} />
         )}
         <input ref={fileRef} className="hidden" type="file" accept=".csv" onChange={(event) => { const name = event.target.files?.[0]?.name; setUploadMessage(name ? `${name} ready to import` : ""); }} />
-        <StudentModal open={modalOpen} onOpenChange={setModalOpen} student={students.find((s) => s.id === editingId)} onSave={save} />
+        <StudentModal key={`${editingId ?? "new"}-${modalOpen}`} open={modalOpen} onOpenChange={setModalOpen} student={students.find((s) => s.id === editingId)} onSave={save} />
       </main>
     </div>
   );
@@ -191,7 +194,7 @@ function Dashboard({ students, visible, query, setQuery, course, setCourse, batc
 
 function StudentCard({ student, index, onClick }: { student: Student; index: number; onClick: () => void }) {
   return <article className="student-card group" onClick={onClick} tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }}>
-    <div className="flex items-start justify-between"><div className={`avatar avatar-${index % 4}`}>{initials(student.name)}</div><span className={`score-badge ${performance(student.score)}`}>{student.score}%</span></div>
+    <div className="flex items-start justify-between"><StudentAvatar student={student} className={`avatar avatar-${index % 4}`} /><span className={`score-badge ${performance(student.score)}`}>{student.score}%</span></div>
     <div className="mt-5"><h3 className="text-xl font-bold">{student.name}</h3><p className="mt-1 font-mono text-xs text-muted-foreground">{student.id}</p></div>
     <div className="my-5 min-h-14 border-l-2 border-primary/50 pl-3"><p className="text-sm font-semibold leading-snug">{student.course}</p><p className="mt-1 text-xs text-muted-foreground">Batch {student.batch}</p></div>
     <div className="grid grid-cols-2 gap-2"><div className="data-tile"><span>Overall</span><strong>{student.score}%</strong></div><div className="data-tile"><span>Attendance</span><strong>{student.attendance}%</strong></div></div>
@@ -208,17 +211,36 @@ function ProfileView({ student, onBack, onEdit }: { student: Student; onBack: ()
   }
   return <div className="profile-shell">
     <header className="border-b border-border bg-header/90 backdrop-blur-xl print:hidden"><div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-5 py-4 lg:px-8"><Button variant="ghost" onClick={onBack}><ArrowLeft/> Back to Dashboard</Button><div className="mx-auto hidden lg:block"><Brand/></div><div className="ml-auto flex gap-2"><Button variant="outline" onClick={exportSheet}><FileSpreadsheet/><span className="hidden sm:inline">Export Excel Sheet</span></Button><Button onClick={() => window.print()}><Download/><span className="hidden sm:inline">Export PDF Report Card</span></Button></div></div></header>
-    <div className="mx-auto max-w-[1400px] px-5 py-7 lg:px-8 lg:py-10">
-      <div className="print-brand hidden"><Brand/></div>
-      <section className="identity-banner"><div className="flex flex-col gap-6 lg:flex-row lg:items-center"><div className="avatar avatar-large">{initials(student.name)}</div><div className="min-w-0 flex-1"><div className="eyebrow">Student performance profile</div><h1 className="mt-2 text-3xl font-bold sm:text-4xl">{student.name}</h1><p className="mt-2 font-mono text-sm text-primary">{student.id}</p><div className="mt-4 flex flex-wrap gap-2"><span className="info-chip"><BookOpen/> {student.course}</span><span className="info-chip"><CalendarDays/> Batch {student.batch}</span></div></div><Button variant="outline" onClick={onEdit} className="self-start"><Pencil/> Edit Record / Add Marks</Button></div>
+    <div className="mx-auto max-w-[1400px] px-5 py-7 print:hidden lg:px-8 lg:py-10">
+      <section className="identity-banner"><div className="flex flex-col gap-6 lg:flex-row lg:items-center"><StudentAvatar student={student} className="avatar avatar-large" /><div className="min-w-0 flex-1"><div className="eyebrow">Student performance profile</div><h1 className="mt-2 text-3xl font-bold sm:text-4xl">{student.name}</h1><p className="mt-2 font-mono text-sm text-primary">{student.id}</p><div className="mt-4 flex flex-wrap gap-2"><span className="info-chip"><BookOpen/> {student.course}</span><span className="info-chip"><CalendarDays/> Batch {student.batch}</span></div></div><Button variant="outline" onClick={onEdit} className="self-start"><Pencil/> Edit Record / Add Marks</Button></div>
         <div className="parent-grid"><Detail icon={UserRound} label="Father's name" value={student.father}/><Detail icon={Phone} label="Contact number" value={student.phone}/><Detail icon={MapPin} label="Address" value={student.address}/><Detail icon={GraduationCap} label="School / prior education" value={`${student.school} · ${student.prior}`}/></div>
       </section>
       <section className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr_1.5fr]"><Meter value={student.score} label="Overall score" tone={performance(student.score)}/><Meter value={student.attendance} label="Attendance rate" tone={performance(student.attendance)}/><div className="grade-panel"><div><p className="eyebrow">Academic standing</p><div className="mt-3 flex items-end gap-3"><span className="text-5xl font-bold">{student.grade}</span><span className={`score-badge ${performance(student.score)}`}>{student.status}</span></div></div><Award className="size-16 text-primary/40"/></div></section>
       <section className="mt-5 content-panel"><ProfileTabs tab={tab} setTab={setTab}/><div className="pt-5">{tab === "weekly" && <WeeklyTable exams={student.weekly}/>} {tab === "monthly" && <MonthlyCards exams={student.monthly}/>} {tab === "attendance" && <AttendanceGrid rate={student.attendance}/>}</div></section>
       <section className="remarks-box"><Quote/><div><div className="eyebrow">Instructor remarks</div><p className="mt-2 text-lg leading-relaxed">“{student.remarks}”</p></div></section>
     </div>
+    <PrintableReport student={student} />
   </div>;
 }
+
+function StudentAvatar({ student, className }: { student: Student; className: string }) {
+  return student.photo
+    ? <div className={`${className} overflow-hidden p-0`}><img src={student.photo} alt={`${student.name} profile`} className="h-full w-full object-cover" /></div>
+    : <div className={className}>{initials(student.name)}</div>;
+}
+
+function PrintableReport({ student }: { student: Student }) {
+  const exams = [...student.weekly.map((exam) => ({ ...exam, assessment: "Weekly" })), ...student.monthly.map((exam) => ({ ...exam, assessment: "Monthly / Term" }))];
+  return <article className="print-report">
+    <header className="print-report-header"><div className="print-logo"><GraduationCap /></div><div><h1>AMBITION TECHNICAL INSTITUTE</h1><p>Birendranagar, Surkhet, Nepal</p><strong>STUDENT PERFORMANCE REPORT CARD</strong></div></header>
+    <section className="print-student-summary"><StudentAvatar student={student} className="print-photo" /><div className="print-summary-grid"><PrintDetail label="Full Name" value={student.name}/><PrintDetail label="Student ID" value={student.id}/><PrintDetail label="Course" value={student.course}/><PrintDetail label="Batch" value={student.batch}/><PrintDetail label="Father's Name" value={student.father}/><PrintDetail label="Contact Number" value={student.phone}/></div></section>
+    <section><h2>Performance Marks</h2><table className="print-marks-table"><thead><tr><th>Assessment</th><th>Subject</th><th>Obtained</th><th>Max Marks</th><th>Grade</th></tr></thead><tbody>{exams.map((exam) => { const percent = Math.round(exam.score / exam.max * 100); return <tr key={`${exam.assessment}-${exam.subject}`}><td>{exam.assessment}</td><td>{exam.subject}</td><td>{exam.score}</td><td>{exam.max}</td><td>{gradeFor(percent)}</td></tr>; })}<tr className="print-total-row"><td colSpan={2}>Overall Performance</td><td>{student.score}%</td><td>Attendance</td><td>{student.attendance}%</td></tr></tbody></table></section>
+    <section className="print-remarks"><h2>Instructor Remarks</h2><p>{student.remarks}</p></section>
+    <footer className="print-signatures"><div><span/><strong>Course Coordinator</strong></div><div><span/><strong>Parent / Guardian</strong></div></footer>
+  </article>;
+}
+
+function PrintDetail({ label, value }: { label: string; value: string }) { return <div><span>{label}</span><strong>{value}</strong></div>; }
 
 function Detail({ icon: Icon, label, value }: { icon: typeof UserRound; label: string; value: string }) { return <div className="detail-item"><Icon/><div><span>{label}</span><strong>{value}</strong></div></div>; }
 function ProfileTabs({ tab, setTab }: { tab: "weekly" | "monthly" | "attendance"; setTab: (tab: "weekly" | "monthly" | "attendance") => void }) {
@@ -230,10 +252,20 @@ function WeeklyTable({ exams }: { exams: Exam[] }) { return <div className="over
 function MonthlyCards({ exams }: { exams: Exam[] }) { return <div className="grid gap-3 md:grid-cols-2">{exams.map((e) => <div className="subject-row" key={e.subject}><div className="flex justify-between gap-3"><div><p className="font-bold">{e.subject}</p><p className="mt-1 text-xs text-muted-foreground">{e.label} · {e.date}</p></div><strong className="font-mono">{e.score}/{e.max}</strong></div><div className="progress-track"><div className={`progress-fill ${performance(e.score / e.max * 100)}`} style={{ width: `${e.score / e.max * 100}%` }}/></div></div>)}</div>; }
 function AttendanceGrid({ rate }: { rate: number }) { const present = Math.round(rate * 0.3); return <div><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">Last 30 academic days</h3><p className="text-sm text-muted-foreground">{present} present · {30 - present} absent</p></div><div className="flex gap-4 text-xs"><span className="flex items-center gap-2"><i className="attendance-key present"/>Present</span><span className="flex items-center gap-2"><i className="attendance-key absent"/>Absent</span></div></div><div className="attendance-grid">{Array.from({ length: 30 }, (_, i) => <div key={i} title={`Day ${i + 1}: ${i < present ? "Present" : "Absent"}`} className={i < present ? "present" : "absent"}>{i + 1}</div>)}</div></div>; }
 
-function StudentModal({ open, onOpenChange, student, onSave }: { open: boolean; onOpenChange: (v: boolean) => void; student: Student | undefined; onSave: (v: FormValues) => void }) {
+function StudentModal({ open, onOpenChange, student, onSave }: { open: boolean; onOpenChange: (v: boolean) => void; student: Student | undefined; onSave: (v: StudentFormValues) => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [photo, setPhoto] = useState(student?.photo);
+  function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) { setErrors((current) => ({ ...current, ["photo"]: "Choose a valid image file" })); return; }
+    const reader = new FileReader();
+    reader.onload = () => { if (typeof reader.result === "string") { setPhoto(reader.result); setErrors((current) => { const next = { ...current }; delete next["photo"]; return next; }); } };
+    reader.readAsDataURL(file);
+  }
   const key = `${student?.id ?? "new"}-${open}`;
-  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent key={key} className="max-h-[92vh] max-w-3xl overflow-y-auto bg-card p-0"><DialogHeader className="border-b border-border px-6 py-5"><DialogTitle>{student ? "Edit student record" : "Add new student"}</DialogTitle><DialogDescription>Update the student and guardian information used in presentations.</DialogDescription></DialogHeader><form className="grid gap-4 px-6 py-5 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget)); const parsed = studentSchema.safeParse(data); if (!parsed.success) { setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))); return; } setErrors({}); onSave(parsed.data); }}>
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent key={key} className="max-h-[92vh] max-w-3xl overflow-y-auto bg-card p-0"><DialogHeader className="border-b border-border px-6 py-5"><DialogTitle>{student ? "Edit student record" : "Add new student"}</DialogTitle><DialogDescription>Update the student and guardian information used in presentations.</DialogDescription></DialogHeader><form className="grid gap-4 px-6 py-5 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget)); delete data["photoFile"]; const parsed = studentSchema.safeParse(data); if (!parsed.success) { setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))); return; } setErrors({}); onSave({ ...parsed.data, photo }); }}>
+    <label className="photo-upload-field sm:col-span-2"><span>Student photo</span><div className="flex items-center gap-4">{photo ? <img src={photo} alt="Student photo preview" className="photo-preview" /> : <div className="photo-preview-placeholder"><CircleUserRound /></div>}<div className="min-w-0 flex-1"><input name="photoFile" type="file" accept="image/*" onChange={choosePhoto}/><p>Choose a clear portrait image</p>{errors["photo"] && <small>{errors["photo"]}</small>}</div></div></label>
     {[["name", "Student name", student?.name, "text"], ["id", "Student ID", student?.id, "text"], ["course", "Course", student?.course, "text"], ["father", "Father's name", student?.father, "text"], ["phone", "Phone", student?.phone, "tel"], ["address", "Address", student?.address, "text"], ["score", "Overall marks (%)", student?.score, "number"], ["attendance", "Attendance (%)", student?.attendance, "number"]].map(([name, label, value, type]) => <label className="form-field" key={String(name)}><span>{label}</span><input name={String(name)} type={String(type)} defaultValue={value} maxLength={type === "text" ? 140 : undefined} min={type === "number" ? 0 : undefined} max={type === "number" ? 100 : undefined}/>{errors[String(name)] && <small>{errors[String(name)]}</small>}</label>)}
     <label className="form-field sm:col-span-2"><span>Instructor remarks</span><textarea name="remarks" defaultValue={student?.remarks} rows={4} maxLength={500}/>{errors["remarks"] && <small>{errors["remarks"]}</small>}</label>
     <DialogFooter className="sm:col-span-2 mt-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit"><Check/> Save Student Record</Button></DialogFooter>

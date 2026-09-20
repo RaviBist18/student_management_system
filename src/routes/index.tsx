@@ -132,13 +132,15 @@ function StudentManagementApp() {
   function openAdd() { setEditingId(null); setModalOpen(true); }
   function openEdit(id: string) { setEditingId(id); setModalOpen(true); }
   function save(values: StudentFormValues) {
+    const { photo, ...recordValues } = values;
+    const photoValues = photo ? { photo } : {};
     if (editingId) {
-      setStudents((items) => items.map((s) => s.id === editingId ? { ...s, ...values, grade: gradeFor(values.score), status: statusFor(values.score) } : s));
+      setStudents((items) => items.map((s) => s.id === editingId ? { ...s, ...recordValues, ...photoValues, grade: gradeFor(values.score), status: statusFor(values.score) } : s));
     } else {
       const key = values.course.toLowerCase().includes("python") ? "Python" : values.course.toLowerCase().includes("design") ? "Graphic Design" : values.course.toLowerCase().includes("web") ? "Web Dev" : "MDCT";
       const template = studentsSeed[0];
       if (!template) return;
-      setStudents((items) => [...items, { ...template, ...values, courseKey: key, batch: "2025", grade: gradeFor(values.score), status: statusFor(values.score), school: "Not provided", prior: "Not provided" }]);
+      setStudents((items) => [...items, { ...template, ...recordValues, ...photoValues, courseKey: key, batch: "2025", grade: gradeFor(values.score), status: statusFor(values.score), school: "Not provided", prior: "Not provided" }]);
     }
     setModalOpen(false);
   }

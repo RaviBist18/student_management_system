@@ -1,9 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { z } from "zod";
 import {
   ArrowLeft,
   Award,
+  BarChart3,
   BookOpen,
   CalendarDays,
   Check,
@@ -32,6 +40,22 @@ import {
 } from "lucide-react";
 
 import { toast } from "sonner";
+import Papa from "papaparse";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,6 +77,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Toaster } from "@/components/ui/sonner";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -100,6 +131,9 @@ type Student = {
   photo?: string;
   teacher: string;
   timing: string;
+  admissionFee: number;
+  courseFee: number;
+  payments: Payment[];
 };
 
 const studentsSeed: Student[] = [
@@ -146,6 +180,12 @@ const studentsSeed: Student[] = [
     })),
     remarks:
       "Aarav shows exceptional logical skills and is consistently ahead in practical lab assignments.",
+    admissionFee: 3000,
+    courseFee: 45000,
+    payments: [
+      { id: "p1", amount: 20000, date: "27 Chaitra 2081", mode: "Cash" },
+      { id: "p2", amount: 15000, date: "27 Jestha 2082", mode: "Bank Transfer" },
+    ],
   },
   {
     id: "ATI-2025-0102",
@@ -190,6 +230,9 @@ const studentsSeed: Student[] = [
     })),
     remarks:
       "Priya is working hard and grasping concepts well. Extra practice on data analysis projects will boost her performance.",
+    admissionFee: 3000,
+    courseFee: 38000,
+    payments: [{ id: "p1", amount: 15000, date: "25 Chaitra 2081", mode: "Cash" }],
   },
   {
     id: "ATI-2025-0103",
@@ -234,6 +277,9 @@ const studentsSeed: Student[] = [
     })),
     remarks:
       "Rohan has great creative potential, but needs to improve attendance and submit weekly design tasks on time.",
+    admissionFee: 3000,
+    courseFee: 32000,
+    payments: [],
   },
   {
     id: "ATI-2025-0104",
@@ -277,6 +323,12 @@ const studentsSeed: Student[] = [
       date: "May 2025",
     })),
     remarks: "Sneha is very consistent in both theory and practical lab sessions.",
+    admissionFee: 3000,
+    courseFee: 40000,
+    payments: [
+      { id: "p1", amount: 20000, date: "22 Chaitra 2081", mode: "Bank Transfer" },
+      { id: "p2", amount: 20000, date: "20 Ashadh 2082", mode: "Bank Transfer" },
+    ],
   },
 ];
 
@@ -299,6 +351,51 @@ const studentSchema = z.object({
 
 type FormValues = z.infer<typeof studentSchema>;
 type StudentFormValues = FormValues & { photo: string | undefined };
+
+const CSV_COLUMNS = [
+  "name",
+  "id",
+  "course",
+  "father",
+  "phone",
+  "address",
+  "score",
+  "attendance",
+  "teacher",
+  "timing",
+  "remarks",
+] as const;
+
+type ImportRow = {
+  rowNum: number;
+  raw: Record<string, string>;
+  errors: string[];
+  duplicate: boolean;
+};
+
+const NEPALI_MONTHS = [
+  "Baishakh",
+  "Jestha",
+  "Ashadh",
+  "Shrawan",
+  "Bhadra",
+  "Ashoj",
+  "Kartik",
+  "Mangsir",
+  "Poush",
+  "Magh",
+  "Falgun",
+  "Chaitra",
+];
+
+const FEE_MAP: Record<string, { admission: number; course: number }> = {
+  MDCT: { admission: 3000, course: 45000 },
+  Python: { admission: 3000, course: 38000 },
+  "Graphic Design": { admission: 3000, course: 32000 },
+  "Web Dev": { admission: 3000, course: 40000 },
+};
+
+type Payment = { id: string; amount: number; date: string; mode: string; note?: string };
 const initials = (name: string) =>
   name
     .split(" ")
@@ -322,11 +419,21 @@ const gradeFor = (score: number) =>
             : "D";
 const statusFor = (score: number) =>
   score >= 80 ? "Top Performer" : score < 65 ? "Needs Attention" : "Good";
+const totalDue = (s: Student) => s.admissionFee + s.courseFee;
+const totalPaid = (s: Student) => s.payments.reduce((a, p) => a + p.amount, 0);
+const balanceDue = (s: Student) => totalDue(s) - totalPaid(s);
+const feeStatus = (s: Student) => {
+  const bal = balanceDue(s);
+  if (bal <= 0) return "Paid";
+  if (totalPaid(s) > 0) return "Partial";
+  return "Pending";
+};
 
 function StudentManagementApp() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(() => localStorage.getItem("ati-logged-in") === "true");
   const [students, setStudents] = useState(studentsSeed);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
   const [query, setQuery] = useState("");
   const [course, setCourse] = useState("All Courses");
   const [batch, setBatch] = useState("All Batches");
@@ -340,6 +447,10 @@ function StudentManagementApp() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [importRows, setImportRows] = useState<ImportRow[]>([]);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const selected = students.find((item) => item.id === selectedId);
 
   const visible = useMemo(() => {
@@ -423,6 +534,140 @@ function StudentManagementApp() {
     toast.success(editingId ? "Student record updated" : "New student added");
   }
 
+  function parseCsvFile(file: File) {
+    Papa.parse<Record<string, string>>(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const rows: ImportRow[] = results.data.map((raw, i) => {
+          const errors: string[] = [];
+          const missingCols = CSV_COLUMNS.filter((c) => !(c in raw));
+          if (missingCols.length) errors.push(`Missing columns: ${missingCols.join(", ")}`);
+          const parsed = studentSchema.safeParse(raw);
+          if (!parsed.success) {
+            for (const issue of parsed.error.issues) {
+              errors.push(`${issue.path[0]}: ${issue.message}`);
+            }
+          }
+          const rawId = raw["id"] ?? "";
+          const duplicate = students.some((s) => s.id === rawId);
+          if (duplicate) errors.push(`Duplicate student ID: ${rawId}`);
+          return { rowNum: i + 2, raw, errors, duplicate };
+        });
+        setImportRows(rows);
+        setImportModalOpen(true);
+      },
+      error: () => {
+        toast.error("Could not parse CSV file");
+      },
+    });
+  }
+
+  function commitImport(rows: ImportRow[]) {
+    const valid = rows.filter((r) => r.errors.length === 0);
+    if (!valid.length) {
+      toast.error("No valid rows to import");
+      return;
+    }
+    const template = studentsSeed[0];
+    if (!template) return;
+    const newStudents: Student[] = valid.map((r) => {
+      const v = r.raw;
+      const name = v["name"] ?? "";
+      const id = v["id"] ?? "";
+      const course = v["course"] ?? "";
+      const father = v["father"] ?? "";
+      const phone = v["phone"] ?? "";
+      const address = v["address"] ?? "";
+      const teacher = v["teacher"] ?? "";
+      const timing = v["timing"] ?? "";
+      const remarks = v["remarks"] ?? "";
+      const score = Number(v["score"] ?? 0);
+      const attendance = Number(v["attendance"] ?? 0);
+      const key = course.toLowerCase().includes("python")
+        ? "Python"
+        : course.toLowerCase().includes("design")
+          ? "Graphic Design"
+          : course.toLowerCase().includes("web")
+            ? "Web Dev"
+            : "MDCT";
+      const fees = FEE_MAP[key] ?? { admission: 3000, course: 35000 };
+      return {
+        ...template,
+        name,
+        id,
+        course,
+        courseKey: key,
+        father,
+        phone,
+        address,
+        score,
+        attendance,
+        teacher,
+        timing,
+        remarks,
+        grade: gradeFor(score),
+        status: statusFor(score),
+        batch: "2025",
+        school: "Not provided",
+        prior: "Not provided",
+        admissionFee: fees.admission,
+        courseFee: fees.course,
+        payments: [],
+      };
+    });
+    setStudents((items) => [...items, ...newStudents]);
+    toast.success(`${newStudents.length} student(s) imported`);
+    setImportModalOpen(false);
+    setImportRows([]);
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function bulkDelete() {
+    setStudents((items) => items.filter((s) => !selectedIds.has(s.id)));
+    toast.success(`${selectedIds.size} student(s) deleted`);
+    setSelectedIds(new Set());
+    setSelectMode(false);
+  }
+
+  function bulkExport() {
+    const targets = students.filter((s) => selectedIds.has(s.id));
+    const rows = [
+      CSV_COLUMNS,
+      ...targets.map((s) => [
+        s.name,
+        s.id,
+        s.course,
+        s.father,
+        s.phone,
+        s.address,
+        String(s.score),
+        String(s.attendance),
+        s.teacher,
+        s.timing,
+        s.remarks,
+      ]),
+    ];
+    const csv = rows
+      .map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(","))
+      .join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "students-bulk-export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${targets.length} student(s) exported`);
+  }
+
   function deleteStudent(id: string) {
     const target = students.find((s) => s.id === id);
     setStudents((items) => items.filter((s) => s.id !== id));
@@ -430,20 +675,41 @@ function StudentManagementApp() {
     toast.success(`${target?.name ?? "Student"} record deleted`);
   }
 
+  function addPayment(id: string, payment: Omit<Payment, "id">) {
+    setStudents((items) =>
+      items.map((s) =>
+        s.id === id
+          ? { ...s, payments: [...s.payments, { ...payment, id: crypto.randomUUID() }] }
+          : s,
+      ),
+    );
+    toast.success("Payment recorded");
+  }
+
   if (!loggedIn) {
-    return <LoginScreen onLogin={() => setLoggedIn(true)} />;
+    return (
+      <LoginScreen
+        onLogin={() => {
+          localStorage.setItem("ati-logged-in", "true");
+          setLoggedIn(true);
+        }}
+      />
+    );
   }
 
   return (
     <div className={dark ? "dark" : ""}>
       <main className="min-h-screen bg-background text-foreground transition-colors duration-300">
         <Toaster richColors position="top-right" />
-        {selected ? (
+        {showAnalytics ? (
+          <AnalyticsView students={students} onBack={() => setShowAnalytics(false)} />
+        ) : selected ? (
           <ProfileView
             student={selected}
             onBack={() => setSelectedId(null)}
             onEdit={() => openEdit(selected.id)}
             onDelete={deleteStudent}
+            onAddPayment={addPayment}
           />
         ) : (
           <Dashboard
@@ -451,6 +717,12 @@ function StudentManagementApp() {
             visible={visible}
             query={query}
             setQuery={setQuery}
+            selectMode={selectMode}
+            setSelectMode={setSelectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onBulkDelete={bulkDelete}
+            onBulkExport={bulkExport}
             course={course}
             setCourse={setCourse}
             batch={batch}
@@ -468,6 +740,7 @@ function StudentManagementApp() {
             dark={dark}
             setDark={setDark}
             onAdd={openAdd}
+            onAnalytics={() => setShowAnalytics(true)}
             onSelect={setSelectedId}
             onUpload={() => fileRef.current?.click()}
             uploadMessage={uploadMessage}
@@ -480,9 +753,16 @@ function StudentManagementApp() {
           type="file"
           accept=".csv"
           onChange={(event) => {
-            const name = event.target.files?.[0]?.name;
-            if (name) toast.success(`${name} ready to import`);
+            const file = event.target.files?.[0];
+            if (file) parseCsvFile(file);
+            event.target.value = "";
           }}
+        />
+        <ImportPreviewModal
+          open={importModalOpen}
+          onOpenChange={setImportModalOpen}
+          rows={importRows}
+          onCommit={commitImport}
         />
         <StudentModal
           key={`${editingId ?? "new"}-${modalOpen}`}
@@ -493,6 +773,285 @@ function StudentManagementApp() {
         />
       </main>
     </div>
+  );
+}
+
+function ImportPreviewModal({
+  open,
+  onOpenChange,
+  rows,
+  onCommit,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  rows: ImportRow[];
+  onCommit: (rows: ImportRow[]) => void;
+}) {
+  const validCount = rows.filter((r) => r.errors.length === 0).length;
+  const invalidCount = rows.length - validCount;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto bg-card p-0">
+        <DialogHeader className="border-b border-border px-6 py-5">
+          <DialogTitle>CSV Import Preview</DialogTitle>
+          <DialogDescription>
+            {rows.length} row(s) found · {validCount} valid · {invalidCount} with errors
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto px-6 py-4">
+          <table className="exam-table">
+            <thead>
+              <tr>
+                <th>Row</th>
+                <th>Name</th>
+                <th>Student ID</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.rowNum}>
+                  <td>{r.rowNum}</td>
+                  <td>{r.raw["name"] || "—"}</td>
+                  <td className="font-mono">{r.raw["id"] || "—"}</td>
+                  <td>
+                    {r.errors.length === 0 ? (
+                      <span className="score-badge excellent">Valid</span>
+                    ) : (
+                      <span className="score-badge attention" title={r.errors.join("; ")}>
+                        {r.errors.length} error(s)
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {invalidCount > 0 && (
+            <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
+              {rows
+                .filter((r) => r.errors.length > 0)
+                .map((r) => (
+                  <p key={r.rowNum}>
+                    Row {r.rowNum}: {r.errors.join("; ")}
+                  </p>
+                ))}
+            </div>
+          )}
+        </div>
+        <DialogFooter className="border-t border-border px-6 py-4">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={validCount === 0} onClick={() => onCommit(rows)}>
+            <Check /> Import {validCount} Valid Row(s)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AnalyticsView({ students, onBack }: { students: Student[]; onBack: () => void }) {
+  const courseData = Array.from(new Set(students.map((s) => s.courseKey))).map((key) => {
+    const group = students.filter((s) => s.courseKey === key);
+    return {
+      course: key,
+      avgScore: Math.round(group.reduce((a, s) => a + s.score, 0) / group.length),
+      avgAttendance: Math.round(group.reduce((a, s) => a + s.attendance, 0) / group.length),
+    };
+  });
+
+  const batchData = Array.from(new Set(students.map((s) => s.batch))).map((batch) => {
+    const group = students.filter((s) => s.batch === batch);
+    return {
+      batch: `Batch ${batch}`,
+      students: group.length,
+      avgScore: Math.round(group.reduce((a, s) => a + s.score, 0) / group.length),
+    };
+  });
+
+  const statusData = ["Top Performer", "Good", "Needs Attention"]
+    .map((label) => ({
+      name: label,
+      value: students.filter((s) => s.status === label).length,
+    }))
+    .filter((d) => d.value > 0);
+
+  const statusColors: Record<string, string> = {
+    "Top Performer": "var(--success)",
+    Good: "var(--primary)",
+    "Needs Attention": "var(--danger)",
+  };
+
+  return (
+    <>
+      <header className="sticky top-0 z-30 border-b border-border bg-header/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1500px] items-center gap-4 px-5 py-4 lg:px-8">
+          <Button variant="ghost" onClick={onBack}>
+            <ArrowLeft /> Back to Dashboard
+          </Button>
+          <div className="ml-auto">
+            <Brand />
+          </div>
+        </div>
+      </header>
+      <div className="mx-auto max-w-[1500px] px-5 py-9 lg:px-8 lg:py-14">
+        <section className="mb-10">
+          <div className="eyebrow">Institute analytics</div>
+          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Performance overview</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Aggregated trends across all enrolled students.
+          </p>
+        </section>
+
+        <section className="grid gap-5 lg:grid-cols-2">
+          <div className="content-panel">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              Average score by course
+            </h2>
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={courseData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="course"
+                    tick={{ fontSize: 12 }}
+                    stroke="var(--muted-foreground)"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    stroke="var(--muted-foreground)"
+                    domain={[0, 100]}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar
+                    dataKey="avgScore"
+                    fill="var(--primary)"
+                    radius={[4, 4, 0, 0]}
+                    name="Avg score %"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="content-panel">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              Average attendance by course
+            </h2>
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={courseData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis
+                    dataKey="course"
+                    tick={{ fontSize: 12 }}
+                    stroke="var(--muted-foreground)"
+                  />
+                  <YAxis
+                    tick={{ fontSize: 12 }}
+                    stroke="var(--muted-foreground)"
+                    domain={[0, 100]}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Bar
+                    dataKey="avgAttendance"
+                    fill="var(--violet)"
+                    radius={[4, 4, 0, 0]}
+                    name="Avg attendance %"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="content-panel">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              Batch comparison
+            </h2>
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={batchData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <XAxis dataKey="batch" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                  <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar
+                    dataKey="students"
+                    fill="var(--warning)"
+                    radius={[4, 4, 0, 0]}
+                    name="Students"
+                  />
+                  <Bar
+                    dataKey="avgScore"
+                    fill="var(--success)"
+                    radius={[4, 4, 0, 0]}
+                    name="Avg score %"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="content-panel">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+              Performance distribution
+            </h2>
+            <div className="mt-4 h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={60}
+                    outerRadius={90}
+                    paddingAngle={3}
+                  >
+                    {statusData.map((entry) => (
+                      <Cell key={entry.name} fill={statusColors[entry.name]} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      background: "var(--card)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </section>
+      </div>
+    </>
   );
 }
 
@@ -642,10 +1201,17 @@ function Dashboard({
   dark,
   setDark,
   onAdd,
+  onAnalytics,
   onSelect,
   onUpload,
   uploadMessage,
   onDelete,
+  selectMode,
+  setSelectMode,
+  selectedIds,
+  onToggleSelect,
+  onBulkDelete,
+  onBulkExport,
 }: {
   students: Student[];
   visible: Student[];
@@ -668,10 +1234,17 @@ function Dashboard({
   dark: boolean;
   setDark: (v: boolean) => void;
   onAdd: () => void;
+  onAnalytics: () => void;
   onSelect: (id: string) => void;
   onUpload: () => void;
   uploadMessage: string;
   onDelete: (id: string) => void;
+  selectMode: boolean;
+  setSelectMode: (v: boolean) => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string) => void;
+  onBulkDelete: () => void;
+  onBulkExport: () => void;
 }) {
   const metrics = [
     ["Total students", String(students.length).padStart(2, "0"), Users, "primary"],
@@ -710,6 +1283,9 @@ function Dashboard({
             />
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <Button variant="outline" onClick={onAnalytics} className="hidden sm:inline-flex">
+              <BarChart3 /> Analytics
+            </Button>
             <Button
               variant="outline"
               size="icon"
@@ -717,7 +1293,7 @@ function Dashboard({
               onClick={() => setDark(!dark)}
             >
               {dark ? <Sun /> : <Moon />}
-            </Button>
+            </Button>{" "}
             <Button variant="outline" className="hidden sm:inline-flex" onClick={onUpload}>
               <Upload /> Upload CSV
             </Button>
@@ -818,6 +1394,43 @@ function Dashboard({
             ))}
           </div>
         </section>
+        <div className="mt-6 flex justify-end">
+          <Button
+            variant={selectMode ? "default" : "outline"}
+            onClick={() => setSelectMode(!selectMode)}
+          >
+            <Check />
+            {selectMode ? "Cancel Select" : "Select"}
+          </Button>
+        </div>
+        {selectMode && selectedIds.size > 0 && (
+          <div className="mt-6 flex flex-wrap items-center gap-3 rounded-md border border-primary/30 bg-primary/10 px-4 py-3">
+            <span className="text-sm font-semibold">{selectedIds.size} selected</span>
+            <Button variant="outline" size="sm" onClick={onBulkExport}>
+              <FileSpreadsheet /> Export Selected
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 /> Delete Selected
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {selectedIds.size} student record(s)?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes all exam, attendance, and fee data for the selected students. This
+                    cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={onBulkDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
         {visible.length ? (
           <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {visible.map((student, index) => (
@@ -827,6 +1440,9 @@ function Dashboard({
                 index={index}
                 onClick={() => onSelect(student.id)}
                 onDelete={onDelete}
+                selectMode={selectMode}
+                selected={selectedIds.has(student.id)}
+                onToggleSelect={onToggleSelect}
               />
             ))}
           </section>
@@ -847,48 +1463,68 @@ function StudentCard({
   index,
   onClick,
   onDelete,
+  selectMode,
+  selected,
+  onToggleSelect,
 }: {
   student: Student;
   index: number;
   onClick: () => void;
   onDelete: (id: string) => void;
+  selectMode: boolean;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
 }) {
   return (
     <article
-      className="student-card group"
-      onClick={onClick}
+      className={`student-card group ${selected ? "ring-2 ring-primary" : ""}`}
+      onClick={() => (selectMode ? onToggleSelect(student.id) : onClick())}
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onClick();
+        if (e.key === "Enter") selectMode ? onToggleSelect(student.id) : onClick();
       }}
     >
       <div className="flex items-start justify-between">
-        <StudentAvatar student={student} className={`avatar avatar-${index % 4}`} />
+        <div className="flex items-center gap-3">
+          {selectMode && (
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={() => onToggleSelect(student.id)}
+              onClick={(e) => e.stopPropagation()}
+              className="size-4"
+            />
+          )}
+          <StudentAvatar student={student} className={`avatar avatar-${index % 4}`} />
+        </div>
         <div className="flex items-center gap-2">
           <span className={`score-badge ${performance(student.score)}`}>{student.score}%</span>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button
-                className="delete-icon-btn"
-                title="Delete student"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete {student.name}'s record?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This removes all exam and attendance data for this student. This cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onDelete(student.id)}>Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          {!selectMode && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  className="delete-icon-btn"
+                  title="Delete student"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete {student.name}'s record?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This removes all exam and attendance data for this student. This cannot be
+                    undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onDelete(student.id)}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </div>
       <div className="mt-5">
@@ -921,13 +1557,16 @@ function ProfileView({
   onBack,
   onEdit,
   onDelete,
+  onAddPayment,
 }: {
   student: Student;
   onBack: () => void;
   onEdit: () => void;
   onDelete: (id: string) => void;
+  onAddPayment: (id: string, payment: Omit<Payment, "id">) => void;
 }) {
-  const [tab, setTab] = useState<"weekly" | "monthly" | "attendance">("weekly");
+  const [tab, setTab] = useState<"weekly" | "monthly" | "attendance" | "fees">("weekly");
+  const [presentMode, setPresentMode] = useState(false);
   function exportSheet() {
     const rows = [
       ["Student", student.name],
@@ -964,47 +1603,28 @@ function ProfileView({
   }
   return (
     <div className="profile-shell">
-      <header className="border-b border-border bg-header/90 backdrop-blur-xl print:hidden">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-5 py-4 lg:px-8">
-          <Button variant="ghost" onClick={onBack}>
-            <ArrowLeft /> Back to Dashboard
-          </Button>
-          <div className="mx-auto hidden lg:block">
-            <Brand />
-          </div>
-          <div className="ml-auto flex gap-2">
-            <Button variant="outline" onClick={exportSheet}>
-              <FileSpreadsheet />
-              <span className="hidden sm:inline">Export Excel Sheet</span>
+      {!presentMode && (
+        <header className="border-b border-border bg-header/90 backdrop-blur-xl print:hidden">
+          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-5 py-4 lg:px-8">
+            <Button variant="ghost" onClick={onBack}>
+              <ArrowLeft /> Back to Dashboard
             </Button>
-            <Button onClick={() => window.print()}>
-              <Download />
-              <span className="hidden sm:inline">Export PDF Report Card</span>
-            </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive">
-                  <Trash2 />
-                  <span className="hidden sm:inline">Delete Student</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {student.name}'s record?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This removes all exam and attendance data for this student. This cannot be
-                    undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onDelete(student.id)}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <div className="mx-auto hidden lg:block">
+              <Brand />
+            </div>
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" onClick={exportSheet}>
+                <FileSpreadsheet />
+                <span className="hidden sm:inline">Export Excel Sheet</span>
+              </Button>
+              <Button onClick={() => window.print()}>
+                <Download />
+                <span className="hidden sm:inline">Export PDF Report Card</span>
+              </Button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
       <div className="mx-auto max-w-[1400px] px-5 py-7 print:hidden lg:px-8 lg:py-10">
         <section className="identity-banner">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center">
@@ -1028,9 +1648,46 @@ function ProfileView({
                 </span>
               </div>
             </div>
-            <Button variant="outline" onClick={onEdit} className="self-start">
-              <Pencil /> Edit Record / Add Marks
-            </Button>
+            <div className="flex flex-wrap gap-2 self-start">
+              {!presentMode && (
+                <>
+                  <Button variant="outline" onClick={() => setPresentMode(true)}>
+                    <Users /> Present to Parent
+                  </Button>
+                  <Button variant="outline" onClick={onEdit}>
+                    <Pencil /> Edit Record / Add Marks
+                  </Button>
+                </>
+              )}
+              {presentMode ? (
+                <Button variant="default" onClick={() => setPresentMode(false)}>
+                  <Users /> Exit Presentation
+                </Button>
+              ) : (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 /> Delete Student
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete {student.name}'s record?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This removes all exam and attendance data for this student. This cannot be
+                        undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => onDelete(student.id)}>
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </div>
           </div>
           <div className="parent-grid">
             <Detail icon={UserRound} label="Father's name" value={student.father} />
@@ -1068,7 +1725,10 @@ function ProfileView({
           <div className="pt-5">
             {tab === "weekly" && <WeeklyTable exams={student.weekly} />}{" "}
             {tab === "monthly" && <MonthlyCards exams={student.monthly} />}{" "}
-            {tab === "attendance" && <AttendanceGrid rate={student.attendance} />}
+            {tab === "attendance" && <AttendanceGrid rate={student.attendance} />}{" "}
+            {tab === "fees" && (
+              <FeesPanel student={student} onAddPayment={(p) => onAddPayment(student.id, p)} />
+            )}
           </div>
         </section>
         <section className="remarks-box">
@@ -1210,13 +1870,14 @@ function ProfileTabs({
   tab,
   setTab,
 }: {
-  tab: "weekly" | "monthly" | "attendance";
-  setTab: (tab: "weekly" | "monthly" | "attendance") => void;
+  tab: "weekly" | "monthly" | "attendance" | "fees";
+  setTab: (tab: "weekly" | "monthly" | "attendance" | "fees") => void;
 }) {
-  const tabs: Array<["weekly" | "monthly" | "attendance", string, LucideIcon]> = [
+  const tabs: Array<["weekly" | "monthly" | "attendance" | "fees", string, LucideIcon]> = [
     ["weekly", "Weekly exams", ClipboardList],
     ["monthly", "Monthly / Term", Award],
     ["attendance", "Attendance history", CalendarDays],
+    ["fees", "Fees", FileSpreadsheet],
   ];
   return (
     <div className="tabs print:hidden">
@@ -1229,6 +1890,222 @@ function ProfileTabs({
     </div>
   );
 }
+
+function FeesPanel({
+  student,
+  onAddPayment,
+}: {
+  student: Student;
+  onAddPayment: (payment: Omit<Payment, "id">) => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState("");
+  const [mode, setMode] = useState("Cash");
+  const [note, setNote] = useState("");
+  const due = totalDue(student);
+  const paid = totalPaid(student);
+  const balance = balanceDue(student);
+  const status = feeStatus(student);
+  const statusTone =
+    status === "Paid" ? "excellent" : status === "Partial" ? "average" : "attention";
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    const value = Number(amount);
+    if (!value || value <= 0 || !date) {
+      toast.error("Enter a valid amount and date");
+      return;
+    }
+    onAddPayment({ amount: value, date, mode, ...(note ? { note } : {}) });
+    setAmount("");
+    setDate("");
+    setNote("");
+  }
+
+  return (
+    <div>
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="data-tile">
+          <span>Admission fee</span>
+          <strong>Rs. {student.admissionFee.toLocaleString()}</strong>
+        </div>
+        <div className="data-tile">
+          <span>Course fee</span>
+          <strong>Rs. {student.courseFee.toLocaleString()}</strong>
+        </div>
+        <div className="data-tile">
+          <span>Total paid</span>
+          <strong>Rs. {paid.toLocaleString()}</strong>
+        </div>
+        <div className="data-tile">
+          <span>Balance due</span>
+          <strong className={balance > 0 ? "text-danger" : "text-success"}>
+            Rs. {balance.toLocaleString()}
+          </strong>
+        </div>
+      </div>
+
+      <div className="mb-6 flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Fee status:</span>
+        <span className={`score-badge ${statusTone}`}>{status}</span>
+      </div>
+
+      <form
+        className="mb-8 grid gap-3 rounded-lg border border-border p-4 sm:grid-cols-4"
+        onSubmit={submit}
+      >
+        <label className="form-field">
+          <span>Amount (Rs.)</span>
+          <input
+            type="number"
+            min={1}
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="e.g. 10000"
+          />
+        </label>
+        <label className="form-field">
+          <span>Date (B.S.)</span>
+          <BSDatePicker value={date} onChange={setDate} />
+        </label>
+        <label className="form-field">
+          <span>Mode</span>
+          <Select value={mode} onValueChange={setMode}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="border-border bg-card text-foreground">
+              <SelectItem value="Cash">Cash</SelectItem>
+              <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+              <SelectItem value="eSewa">eSewa</SelectItem>
+              <SelectItem value="Khalti">Khalti</SelectItem>
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="form-field">
+          <span>Note (optional)</span>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. 2nd installment"
+          />
+        </label>
+        <div className="sm:col-span-4">
+          <Button type="submit">
+            <Plus /> Record Payment
+          </Button>
+        </div>
+      </form>
+
+      <div className="overflow-x-auto">
+        <table className="exam-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Mode</th>
+              <th>Note</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {student.payments.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center text-muted-foreground">
+                  No payments recorded yet
+                </td>
+              </tr>
+            )}
+            {student.payments.map((p) => (
+              <tr key={p.id}>
+                <td>{p.date}</td>
+                <td>{p.mode}</td>
+                <td className="text-muted-foreground">{p.note ?? "—"}</td>
+                <td className="font-mono font-bold">Rs. {p.amount.toLocaleString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BSDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const parts = value.split(" ");
+  const [day, setDay] = useState(parts[0] ?? "");
+  const [month, setMonth] = useState(parts[1] ?? "Ashoj");
+  const [year, setYear] = useState(parts[2] ?? "2083");
+  const years = Array.from({ length: 10 }, (_, i) => String(2078 + i));
+  const days = Array.from({ length: 32 }, (_, i) => String(i + 1).padStart(2, "0"));
+
+  function apply() {
+    onChange(`${day.padStart(2, "0")} ${month} ${year}`);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 text-sm"
+        onClick={() => setOpen(!open)}
+      >
+        <span className={value ? "" : "text-muted-foreground"}>
+          {value || "Select date (B.S.)"}
+        </span>
+        <CalendarDays className="size-4 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-2 w-full min-w-72 rounded-md border border-border bg-card p-4 shadow-xl">
+          <div className="grid grid-cols-3 gap-2">
+            <Select value={day} onValueChange={setDay}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card text-foreground">
+                {days.map((d) => (
+                  <SelectItem key={d} value={d}>
+                    {d}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={month} onValueChange={setMonth}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card text-foreground">
+                {NEPALI_MONTHS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={year} onValueChange={setYear}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card text-foreground">
+                {years.map((y) => (
+                  <SelectItem key={y} value={y}>
+                    {y}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <Button type="button" className="mt-3 w-full" onClick={apply}>
+            <Check /> Set Date
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Meter({ value, label, tone }: { value: number; label: string; tone: string }) {
   return (
     <div className="meter-card">
@@ -1248,39 +2125,70 @@ function Meter({ value, label, tone }: { value: number; label: string; tone: str
   );
 }
 function WeeklyTable({ exams }: { exams: Exam[] }) {
+  const trendData = exams.map((e) => ({
+    label: e.label,
+    percent: Math.round((e.score / e.max) * 100),
+  }));
   return (
-    <div className="overflow-x-auto">
-      <table className="exam-table">
-        <thead>
-          <tr>
-            <th>Assessment</th>
-            <th>Topic</th>
-            <th>Date</th>
-            <th>Marks</th>
-            <th>Performance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {exams.map((e) => {
-            const pct = Math.round((e.score / e.max) * 100);
-            return (
-              <tr key={e.label}>
-                <td>
-                  <strong>{e.label}</strong>
-                </td>
-                <td>{e.subject}</td>
-                <td className="text-muted-foreground">{e.date}</td>
-                <td className="font-mono font-bold">
-                  {e.score} / {e.max}
-                </td>
-                <td>
-                  <span className={`score-badge ${performance(pct)}`}>{pct}%</span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div>
+      <div className="mb-6 h-56">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={trendData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+            <XAxis dataKey="label" tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" />
+            <YAxis tick={{ fontSize: 12 }} stroke="var(--muted-foreground)" domain={[0, 100]} />
+            <Tooltip
+              contentStyle={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                fontSize: 12,
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="percent"
+              stroke="var(--primary)"
+              strokeWidth={2}
+              dot={{ r: 4 }}
+              name="Score %"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="exam-table">
+          <thead>
+            <tr>
+              <th>Assessment</th>
+              <th>Topic</th>
+              <th>Date</th>
+              <th>Marks</th>
+              <th>Performance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {exams.map((e) => {
+              const pct = Math.round((e.score / e.max) * 100);
+              return (
+                <tr key={e.label}>
+                  <td>
+                    <strong>{e.label}</strong>
+                  </td>
+                  <td>{e.subject}</td>
+                  <td className="text-muted-foreground">{e.date}</td>
+                  <td className="font-mono font-bold">
+                    {e.score} / {e.max}
+                  </td>
+                  <td>
+                    <span className={`score-badge ${performance(pct)}`}>{pct}%</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1311,15 +2219,24 @@ function MonthlyCards({ exams }: { exams: Exam[] }) {
     </div>
   );
 }
+
 function AttendanceGrid({ rate }: { rate: number }) {
   const present = Math.round(rate * 0.3);
+  const totalDays = 30;
+  const startWeekday = 2; // April 2025 starts on a Tuesday
+  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const cells: Array<number | null> = [
+    ...Array(startWeekday).fill(null),
+    ...Array.from({ length: totalDays }, (_, i) => i + 1),
+  ];
+
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-bold">Last 30 academic days</h3>
+          <h3 className="font-bold">Ashoj 2083 attendance</h3>
           <p className="text-sm text-muted-foreground">
-            {present} present · {30 - present} absent
+            {present} present · {totalDays - present} absent
           </p>
         </div>
         <div className="flex gap-4 text-xs">
@@ -1333,16 +2250,25 @@ function AttendanceGrid({ rate }: { rate: number }) {
           </span>
         </div>
       </div>
-      <div className="attendance-grid">
-        {Array.from({ length: 30 }, (_, i) => (
-          <div
-            key={i}
-            title={`Day ${i + 1}: ${i < present ? "Present" : "Absent"}`}
-            className={i < present ? "present" : "absent"}
-          >
-            {i + 1}
-          </div>
+      <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-muted-foreground">
+        {weekdays.map((day) => (
+          <div key={day}>{day}</div>
         ))}
+      </div>
+      <div className="mt-2 grid grid-cols-7 gap-2">
+        {cells.map((day, i) =>
+          day === null ? (
+            <div key={`empty-${i}`} />
+          ) : (
+            <div
+              key={day}
+              title={`Day ${day}: ${day <= present ? "Present" : "Absent"}`}
+              className={`flex aspect-square items-center justify-center rounded-md text-xs font-bold ${day <= present ? "bg-success/20 text-success" : "bg-danger/20 text-danger"}`}
+            >
+              {day}
+            </div>
+          ),
+        )}
       </div>
     </div>
   );

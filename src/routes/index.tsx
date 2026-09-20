@@ -24,6 +24,7 @@ import {
   Upload,
   UserRound,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -134,7 +135,9 @@ function StudentManagementApp() {
       setStudents((items) => items.map((s) => s.id === editingId ? { ...s, ...values, grade: gradeFor(values.score), status: statusFor(values.score) } : s));
     } else {
       const key = values.course.toLowerCase().includes("python") ? "Python" : values.course.toLowerCase().includes("design") ? "Graphic Design" : values.course.toLowerCase().includes("web") ? "Web Dev" : "MDCT";
-      setStudents((items) => [...items, { ...studentsSeed[0], ...values, courseKey: key, batch: "2025", grade: gradeFor(values.score), status: statusFor(values.score), school: "Not provided", prior: "Not provided" }]);
+      const template = studentsSeed[0];
+      if (!template) return;
+      setStudents((items) => [...items, { ...template, ...values, courseKey: key, batch: "2025", grade: gradeFor(values.score), status: statusFor(values.score), school: "Not provided", prior: "Not provided" }]);
     }
     setModalOpen(false);
   }
@@ -211,24 +214,28 @@ function ProfileView({ student, onBack, onEdit }: { student: Student; onBack: ()
         <div className="parent-grid"><Detail icon={UserRound} label="Father's name" value={student.father}/><Detail icon={Phone} label="Contact number" value={student.phone}/><Detail icon={MapPin} label="Address" value={student.address}/><Detail icon={GraduationCap} label="School / prior education" value={`${student.school} · ${student.prior}`}/></div>
       </section>
       <section className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr_1.5fr]"><Meter value={student.score} label="Overall score" tone={performance(student.score)}/><Meter value={student.attendance} label="Attendance rate" tone={performance(student.attendance)}/><div className="grade-panel"><div><p className="eyebrow">Academic standing</p><div className="mt-3 flex items-end gap-3"><span className="text-5xl font-bold">{student.grade}</span><span className={`score-badge ${performance(student.score)}`}>{student.status}</span></div></div><Award className="size-16 text-primary/40"/></div></section>
-      <section className="mt-5 content-panel"><div className="tabs print:hidden">{[["weekly", "Weekly exams", ClipboardList], ["monthly", "Monthly / Term", Award], ["attendance", "Attendance history", CalendarDays]].map(([key, label, Icon]) => <Button key={String(key)} variant={tab === key ? "default" : "ghost"} onClick={() => setTab(key as typeof tab)}><Icon/>{String(label)}</Button>)}</div><div className="pt-5">{tab === "weekly" && <WeeklyTable exams={student.weekly}/>} {tab === "monthly" && <MonthlyCards exams={student.monthly}/>} {tab === "attendance" && <AttendanceGrid rate={student.attendance}/>}</div></section>
+      <section className="mt-5 content-panel"><div className="tabs print:hidden">{([...["weekly", "Weekly exams", ClipboardList] as const,] as unknown as never[])}</div><ProfileTabs tab={tab} setTab={setTab}/><div className="pt-5">{tab === "weekly" && <WeeklyTable exams={student.weekly}/>} {tab === "monthly" && <MonthlyCards exams={student.monthly}/>} {tab === "attendance" && <AttendanceGrid rate={student.attendance}/>}</div></section>
       <section className="remarks-box"><Quote/><div><div className="eyebrow">Instructor remarks</div><p className="mt-2 text-lg leading-relaxed">“{student.remarks}”</p></div></section>
     </div>
   </div>;
 }
 
 function Detail({ icon: Icon, label, value }: { icon: typeof UserRound; label: string; value: string }) { return <div className="detail-item"><Icon/><div><span>{label}</span><strong>{value}</strong></div></div>; }
+function ProfileTabs({ tab, setTab }: { tab: "weekly" | "monthly" | "attendance"; setTab: (tab: "weekly" | "monthly" | "attendance") => void }) {
+  const tabs: Array<["weekly" | "monthly" | "attendance", string, LucideIcon]> = [["weekly", "Weekly exams", ClipboardList], ["monthly", "Monthly / Term", Award], ["attendance", "Attendance history", CalendarDays]];
+  return <div className="tabs print:hidden">{tabs.map(([key, label, Icon]) => <Button key={key} variant={tab === key ? "default" : "ghost"} onClick={() => setTab(key)}><Icon/>{label}</Button>)}</div>;
+}
 function Meter({ value, label, tone }: { value: number; label: string; tone: string }) { return <div className="meter-card"><div className={`score-ring ${tone}`} style={{ "--score": value } as CSSProperties}><div><strong>{value}</strong><span>%</span></div></div><div><p className="text-sm text-muted-foreground">{label}</p><p className="mt-1 font-bold">{value >= 85 ? "Excellent" : value >= 70 ? "On track" : "Needs focus"}</p></div></div>; }
 function WeeklyTable({ exams }: { exams: Exam[] }) { return <div className="overflow-x-auto"><table className="exam-table"><thead><tr><th>Assessment</th><th>Topic</th><th>Date</th><th>Marks</th><th>Performance</th></tr></thead><tbody>{exams.map((e) => { const pct = Math.round(e.score / e.max * 100); return <tr key={e.label}><td><strong>{e.label}</strong></td><td>{e.subject}</td><td className="text-muted-foreground">{e.date}</td><td className="font-mono font-bold">{e.score} / {e.max}</td><td><span className={`score-badge ${performance(pct)}`}>{pct}%</span></td></tr>; })}</tbody></table></div>; }
 function MonthlyCards({ exams }: { exams: Exam[] }) { return <div className="grid gap-3 md:grid-cols-2">{exams.map((e) => <div className="subject-row" key={e.subject}><div className="flex justify-between gap-3"><div><p className="font-bold">{e.subject}</p><p className="mt-1 text-xs text-muted-foreground">{e.label} · {e.date}</p></div><strong className="font-mono">{e.score}/{e.max}</strong></div><div className="progress-track"><div className={`progress-fill ${performance(e.score / e.max * 100)}`} style={{ width: `${e.score / e.max * 100}%` }}/></div></div>)}</div>; }
 function AttendanceGrid({ rate }: { rate: number }) { const present = Math.round(rate * 0.3); return <div><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold">Last 30 academic days</h3><p className="text-sm text-muted-foreground">{present} present · {30 - present} absent</p></div><div className="flex gap-4 text-xs"><span className="flex items-center gap-2"><i className="attendance-key present"/>Present</span><span className="flex items-center gap-2"><i className="attendance-key absent"/>Absent</span></div></div><div className="attendance-grid">{Array.from({ length: 30 }, (_, i) => <div key={i} title={`Day ${i + 1}: ${i < present ? "Present" : "Absent"}`} className={i < present ? "present" : "absent"}>{i + 1}</div>)}</div></div>; }
 
-function StudentModal({ open, onOpenChange, student, onSave }: { open: boolean; onOpenChange: (v: boolean) => void; student?: Student; onSave: (v: FormValues) => void }) {
+function StudentModal({ open, onOpenChange, student, onSave }: { open: boolean; onOpenChange: (v: boolean) => void; student: Student | undefined; onSave: (v: FormValues) => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const key = `${student?.id ?? "new"}-${open}`;
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent key={key} className="max-h-[92vh] max-w-3xl overflow-y-auto bg-card p-0"><DialogHeader className="border-b border-border px-6 py-5"><DialogTitle>{student ? "Edit student record" : "Add new student"}</DialogTitle><DialogDescription>Update the student and guardian information used in presentations.</DialogDescription></DialogHeader><form className="grid gap-4 px-6 py-5 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); const data = Object.fromEntries(new FormData(e.currentTarget)); const parsed = studentSchema.safeParse(data); if (!parsed.success) { setErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))); return; } setErrors({}); onSave(parsed.data); }}>
     {[["name", "Student name", student?.name, "text"], ["id", "Student ID", student?.id, "text"], ["course", "Course", student?.course, "text"], ["father", "Father's name", student?.father, "text"], ["phone", "Phone", student?.phone, "tel"], ["address", "Address", student?.address, "text"], ["score", "Overall marks (%)", student?.score, "number"], ["attendance", "Attendance (%)", student?.attendance, "number"]].map(([name, label, value, type]) => <label className="form-field" key={String(name)}><span>{label}</span><input name={String(name)} type={String(type)} defaultValue={value} maxLength={type === "text" ? 140 : undefined} min={type === "number" ? 0 : undefined} max={type === "number" ? 100 : undefined}/>{errors[String(name)] && <small>{errors[String(name)]}</small>}</label>)}
-    <label className="form-field sm:col-span-2"><span>Instructor remarks</span><textarea name="remarks" defaultValue={student?.remarks} rows={4} maxLength={500}/>{errors.remarks && <small>{errors.remarks}</small>}</label>
+    <label className="form-field sm:col-span-2"><span>Instructor remarks</span><textarea name="remarks" defaultValue={student?.remarks} rows={4} maxLength={500}/>{errors["remarks"] && <small>{errors["remarks"]}</small>}</label>
     <DialogFooter className="sm:col-span-2 mt-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="submit"><Check/> Save Student Record</Button></DialogFooter>
   </form></DialogContent></Dialog>;
 }

@@ -19,6 +19,8 @@
  */
 
 @theme inline {
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-mono: "Roboto Mono", monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -59,11 +61,18 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-header: var(--header);
+  --color-surface-raised: var(--surface-raised);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-violet: var(--violet);
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
+  --radius: 0.5rem;
+  --background: oklch(0.985 0.004 247.9);
   --foreground: oklch(0.129 0.042 264.695);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.129 0.042 264.695);
@@ -95,17 +104,24 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --header: oklch(1 0 0);
+  --surface-raised: oklch(0.97 0.008 250);
+  --success: oklch(0.67 0.17 155);
+  --success-soft: oklch(0.94 0.04 155);
+  --warning: oklch(0.77 0.16 75);
+  --danger: oklch(0.63 0.22 25);
+  --violet: oklch(0.61 0.22 294);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
+  --background: oklch(0.15 0.035 260);
   --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
+  --card: oklch(0.22 0.04 258 / 82%);
   --card-foreground: oklch(0.984 0.003 247.858);
   --popover: oklch(0.208 0.042 265.755);
   --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
+  --primary: oklch(0.64 0.2 275);
+  --primary-foreground: oklch(0.99 0 0);
   --secondary: oklch(0.279 0.041 260.031);
   --secondary-foreground: oklch(0.984 0.003 247.858);
   --muted: oklch(0.279 0.041 260.031);
@@ -130,6 +146,13 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  --header: oklch(0.17 0.035 260);
+  --surface-raised: oklch(0.25 0.035 258);
+  --success: oklch(0.72 0.18 155);
+  --success-soft: oklch(0.28 0.08 155);
+  --warning: oklch(0.79 0.16 75);
+  --danger: oklch(0.68 0.2 25);
+  --violet: oklch(0.7 0.2 300);
 }
 
 @layer base {
@@ -140,5 +163,57 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    letter-spacing: 0;
   }
+
+  button, input, select, textarea { font: inherit; }
+  button, [role="button"], select { cursor: pointer; }
+}
+
+@utility brand-mark { @apply flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg; }
+@utility eyebrow { @apply text-xs font-bold uppercase text-primary; letter-spacing: .12em; }
+@utility operator-tag { @apply flex items-center gap-2 rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold; }
+@utility status-dot { @apply size-2 rounded-full bg-success; box-shadow: 0 0 0 4px var(--success-soft); }
+@utility metric-card { @apply flex min-h-28 items-center gap-4 rounded-lg border border-border bg-card p-5 shadow-sm backdrop-blur-xl; }
+@utility metric-icon { @apply flex size-11 items-center justify-center rounded-md; }
+@utility metric-primary { @apply bg-primary/15 text-primary; }
+@utility metric-violet { @apply bg-violet/15 text-violet; }
+@utility metric-emerald { @apply bg-success/15 text-success; }
+@utility metric-amber { @apply bg-warning/15 text-warning; }
+@utility metric-value { @apply font-mono text-2xl font-semibold; }
+@utility filter-control { @apply flex min-w-40 items-center gap-2 rounded-md border border-border bg-card px-3; & span { @apply text-xs text-muted-foreground; } & select { @apply h-10 min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none; } & option { @apply bg-card; } }
+@utility student-card { @apply rounded-lg border border-border bg-card p-5 shadow-sm backdrop-blur-xl transition duration-200 hover:-translate-y-1 hover:border-primary/60 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-ring; }
+@utility avatar { @apply flex size-14 shrink-0 items-center justify-center rounded-full bg-primary/15 text-lg font-bold text-primary ring-1 ring-primary/30; }
+@utility avatar-1 { @apply bg-violet/15 text-violet ring-violet/30; }
+@utility avatar-2 { @apply bg-warning/15 text-warning ring-warning/30; }
+@utility avatar-3 { @apply bg-success/15 text-success ring-success/30; }
+@utility avatar-large { @apply size-28 text-3xl; }
+@utility score-badge { @apply inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-bold; &.excellent { @apply bg-success/15 text-success; } &.good { @apply bg-primary/15 text-primary; } &.average { @apply bg-warning/15 text-warning; } &.attention { @apply bg-danger/15 text-danger; } }
+@utility data-tile { @apply rounded-md bg-surface-raised p-3; & span { @apply block text-xs text-muted-foreground; } & strong { @apply mt-1 block font-mono text-lg; } }
+@utility empty-state { @apply my-16 flex flex-col items-center justify-center text-center text-muted-foreground; & svg { @apply mb-3 size-10; } & h3 { @apply text-lg font-bold text-foreground; } }
+@utility identity-banner { @apply rounded-lg border border-border bg-card p-6 shadow-sm backdrop-blur-xl lg:p-8; }
+@utility info-chip { @apply inline-flex items-center gap-2 rounded-md bg-surface-raised px-3 py-2 text-xs font-semibold; & svg { @apply size-4 text-primary; } }
+@utility parent-grid { @apply mt-7 grid gap-4 border-t border-border pt-6 sm:grid-cols-2 xl:grid-cols-4; }
+@utility detail-item { @apply flex items-start gap-3; & > svg { @apply mt-1 size-4 shrink-0 text-primary; } & span { @apply block text-xs text-muted-foreground; } & strong { @apply mt-1 block text-sm leading-snug; } }
+@utility meter-card { @apply flex items-center gap-5 rounded-lg border border-border bg-card p-5; }
+@utility score-ring { @apply relative flex size-24 shrink-0 items-center justify-center rounded-full; background: conic-gradient(var(--ring-color) calc(var(--score) * 1%), var(--surface-raised) 0); &::before { content: ""; @apply absolute size-[74px] rounded-full bg-card; } & > div { @apply relative font-mono; } & strong { @apply text-2xl; } & span { @apply text-xs text-muted-foreground; } &.excellent { --ring-color: var(--success); } &.good { --ring-color: var(--primary); } &.average { --ring-color: var(--warning); } &.attention { --ring-color: var(--danger); } }
+@utility grade-panel { @apply flex min-h-32 items-center justify-between rounded-lg border border-primary/30 bg-primary/10 p-6; }
+@utility content-panel { @apply rounded-lg border border-border bg-card p-5 shadow-sm lg:p-6; }
+@utility tabs { @apply flex gap-2 overflow-x-auto border-b border-border pb-4; }
+@utility exam-table { @apply w-full min-w-[700px] text-left text-sm; & th { @apply border-b border-border px-4 py-3 text-xs uppercase text-muted-foreground; } & td { @apply border-b border-border/70 px-4 py-4; } & tr:last-child td { @apply border-b-0; } }
+@utility subject-row { @apply rounded-md border border-border bg-surface-raised p-4; }
+@utility progress-track { @apply mt-4 h-2 overflow-hidden rounded-full bg-muted; }
+@utility progress-fill { @apply h-full rounded-full; &.excellent { @apply bg-success; } &.good { @apply bg-primary; } &.average { @apply bg-warning; } &.attention { @apply bg-danger; } }
+@utility attendance-grid { @apply grid grid-cols-6 gap-2 sm:grid-cols-10; & div { @apply flex aspect-square items-center justify-center rounded-md text-xs font-bold; } & .present { @apply bg-success/20 text-success; } & .absent { @apply bg-danger/20 text-danger; } }
+@utility attendance-key { @apply size-3 rounded-sm; &.present { @apply bg-success; } &.absent { @apply bg-danger; } }
+@utility remarks-box { @apply mt-5 flex gap-4 rounded-lg border border-violet/30 bg-violet/10 p-6; & > svg { @apply size-7 shrink-0 text-violet; } }
+@utility form-field { @apply grid gap-2 text-sm font-semibold; & input, & textarea { @apply w-full rounded-md border border-input bg-background px-3 py-2.5 font-normal outline-none focus:ring-2 focus:ring-ring; } & small { @apply text-xs font-medium text-danger; } }
+@utility print-brand { @apply mb-6; }
+
+@media print {
+  .print\:hidden { display: none !important; }
+  .print-brand { display: block !important; }
+  body, .profile-shell, main { background: white !important; color: black !important; }
+  .identity-banner, .meter-card, .grade-panel, .content-panel, .remarks-box { box-shadow: none !important; break-inside: avoid; background: white !important; }
 }

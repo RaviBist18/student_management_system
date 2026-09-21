@@ -38,8 +38,15 @@ type StudentsContextValue = {
     bsYear: number,
     bsMonth: number,
   ) => Promise<{ success: number; failed: string[] }>;
+  uploadWeeklyExamCsv: (
+    courseKey: string,
+    file: File,
+    weekLabel: string,
+    examDate: string,
+  ) => Promise<{ success: number; failed: string[] }>;
+  resetWeeklyForStudent: (studentId: string) => Promise<void>;
+  resetWeeklyForCourse: (courseKey: string) => Promise<number>;
 };
-
 const StudentsContext = createContext<StudentsContextValue | null>(null);
 
 function mapRow(s: any, payments: any[]): Student {
@@ -54,7 +61,7 @@ function mapRow(s: any, payments: any[]): Student {
     address: s.address ?? "",
     school: s.school ?? "",
     prior: s.prior ?? "",
-    score: Number(s.score),
+    score: s.score === null ? null : Number(s.score),
     grade: s.grade ?? "",
     attendance: Number(s.attendance),
     status: s.status ?? "",
@@ -142,8 +149,7 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
 
   async function save(values: StudentFormValues) {
     const { photo, ...recordValues } = values;
-    const grade = gradeFor(values.score);
-    const status = statusFor(values.score);
+    // score/grade/status are derived from weekly marks (uploadWeeklyExamCsv) — never set here.
     if (editingId) {
       const { attendance: _ignoredAttendance, ...updateValues } = recordValues;
       const { error } = await supabase
@@ -152,8 +158,6 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
           ...updateValues,
           course_key: recordValues.course,
           photo: photo ?? undefined,
-          grade,
-          status,
         })
         .eq("id", editingId);
       if (error) {
@@ -186,8 +190,9 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
         attendance: 0,
         course_key: key,
         batch: "2025",
-        grade,
-        status,
+        score: null,
+        grade: "",
+        status: "",
         school: "Not provided",
         prior: "Not provided",
         photo: photo ?? null,
@@ -203,7 +208,6 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
     setModalOpen(false);
     fetchStudents();
   }
-
   async function deleteStudent(id: string) {
     const target = students.find((s) => s.id === id);
     const { error } = await supabase.from("students").delete().eq("id", id);
@@ -478,6 +482,191 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
     });
   }
 
+  async function uploadWeeklyExamCsv(
+    courseKey: string,
+    file: File,
+    weekLabel: string,
+    examDate: string,
+  ): Promise<{ success: number; failed: string[] }> {
+    return new Promise((resolve) => {
+      Papa.parse<Record<string, string>>(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          const failed: string[] = [];
+          let success = 0;
+
+          if (!results.data.length) {
+            resolve({ success: 0, failed: ["CSV has no data rows"] });
+            return;
+          }
+
+          // group rows by roll_no — one student can have multiple subject rows in same CSV
+          const byRoll = new Map<
+            number,
+            { rowNum: number; subject: string; marks: string; maxMarks: string }[]
+          >();
+
+          for (let i = 0; i < results.data.length; i++) {
+            const row = results.data[i];
+            if (!row) continue;
+            const rowNum = i + 2;
+            const rollNo = Number(row["roll_no"]);
+            const subject = (row["subject"] ?? "").trim();
+
+            if (!rollNo) {
+              failed.push(`Row ${rowNum}: invalid roll_no`);
+              continue;
+            }
+            if (!subject) {
+              failed.push(`Row ${rowNum}: missing subject`);
+              continue;
+            }
+
+            const entries = byRoll.get(rollNo) ?? [];
+            entries.push({
+              rowNum,
+              subject,
+              marks: row["marks"] ?? "",
+              maxMarks: row["max_marks"] ?? "",
+            });
+            byRoll.set(rollNo, entries);
+          }
+
+          for (const [rollNo, entries] of byRoll) {
+            const { data: student, error: lookupErr } = await supabase
+              .from("students")
+              .select("id, weekly")
+              .eq("course_key", courseKey)
+              .eq("roll_no", rollNo)
+              .maybeSingle();
+
+            if (lookupErr || !student) {
+              for (const e of entries) {
+                failed.push(`Row ${e.rowNum}: no student with roll_no ${rollNo} in ${courseKey}`);
+              }
+              continue;
+            }
+
+            let weekly: {
+              label: string;
+              subject: string;
+              score: number;
+              max: number;
+              date: string;
+            }[] = student.weekly ?? [];
+
+            for (const e of entries) {
+              const marks = Number(e.marks);
+              if (Number.isNaN(marks)) {
+                failed.push(`Row ${e.rowNum}: invalid marks for roll_no ${rollNo}`);
+                continue;
+              }
+              const maxMarks = e.maxMarks.trim() ? Number(e.maxMarks) : 50;
+              if (Number.isNaN(maxMarks) || maxMarks <= 0) {
+                failed.push(`Row ${e.rowNum}: invalid max_marks for roll_no ${rollNo}`);
+                continue;
+              }
+              if (marks > maxMarks) {
+                failed.push(
+                  `Row ${e.rowNum}: marks (${marks}) exceeds max_marks (${maxMarks}) for roll_no ${rollNo}`,
+                );
+                continue;
+              }
+
+              // upsert by (label, subject), case/whitespace-insensitive — drop old entry for same week+subject, add fresh one
+              weekly = weekly.filter(
+                (w) =>
+                  !(
+                    w.label.trim().toLowerCase() === weekLabel.trim().toLowerCase() &&
+                    w.subject === e.subject
+                  ),
+              );
+              weekly.push({
+                label: weekLabel.trim().replace(/^week\s+(\d+)$/i, "Week $1"),
+                subject: e.subject,
+                score: marks,
+                max: maxMarks,
+                date: examDate,
+              });
+              success++;
+            }
+
+            const overallScore = weekly.length
+              ? Math.round(
+                  weekly.reduce((sum, w) => sum + (w.score / w.max) * 100, 0) / weekly.length,
+                )
+              : null; // null → UI shows "—", not 0%
+
+            const { error: updateErr } = await supabase
+              .from("students")
+              .update({
+                weekly,
+                score: overallScore,
+                grade: overallScore !== null ? gradeFor(overallScore) : "",
+                status: overallScore !== null ? statusFor(overallScore) : "",
+              })
+              .eq("id", student.id);
+
+            if (updateErr) {
+              for (const e of entries) failed.push(`Row ${e.rowNum}: ${updateErr.message}`);
+            }
+          }
+
+          fetchStudents();
+          resolve({ success, failed });
+        },
+        error: () => resolve({ success: 0, failed: ["Could not parse CSV file"] }),
+      });
+    });
+  }
+
+  async function resetWeeklyForStudent(studentId: string): Promise<void> {
+    const { error } = await supabase
+      .from("students")
+      .update({ weekly: [], score: null, grade: "", status: "" })
+      .eq("id", studentId);
+    if (error) {
+      console.error("resetWeeklyForStudent error:", error);
+      toast.error("Failed to reset weekly marks");
+      return;
+    }
+    toast.success("Weekly marks reset");
+    fetchStudents();
+  }
+
+  async function resetWeeklyForCourse(courseKey: string): Promise<number> {
+    const { data: targets, error: lookupErr } = await supabase
+      .from("students")
+      .select("id")
+      .eq("course_key", courseKey);
+
+    if (lookupErr || !targets) {
+      toast.error("Failed to look up students for this course");
+      return 0;
+    }
+
+    if (!targets.length) {
+      toast.error("No students found in this course");
+      return 0;
+    }
+
+    const { error } = await supabase
+      .from("students")
+      .update({ weekly: [], score: null, grade: "", status: "" })
+      .eq("course_key", courseKey);
+
+    if (error) {
+      console.error("resetWeeklyForCourse error:", error);
+      toast.error("Failed to reset weekly marks");
+      return 0;
+    }
+
+    toast.success(`Weekly marks reset for ${targets.length} student(s)`);
+    fetchStudents();
+    return targets.length;
+  }
+
   return (
     <StudentsContext.Provider
       value={{
@@ -505,6 +694,9 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
         parseCsvFile,
         commitImport,
         uploadAttendanceCsv,
+        uploadWeeklyExamCsv,
+        resetWeeklyForStudent,
+        resetWeeklyForCourse,
       }}
     >
       {children}

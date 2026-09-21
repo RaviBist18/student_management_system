@@ -13,7 +13,7 @@ export type Student = {
   address: string;
   school: string;
   prior: string;
-  score: number;
+  score: number | null;
   grade: string;
   attendance: number;
   status: string;

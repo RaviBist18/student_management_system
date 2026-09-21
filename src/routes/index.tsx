@@ -15,6 +15,7 @@ import { AttendanceBreakdownView } from "@/components/AttendanceBreakdownView";
 import { StudentModal } from "@/components/StudentModal";
 import { ImportPreviewModal } from "@/components/ImportPreviewModal";
 import { AttendanceUploadModal } from "@/components/AttendanceUploadModal";
+import { WeeklyMarksUploadModal } from "@/components/WeeklyMarksUploadModal";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -82,6 +83,8 @@ function StudentManagementApp() {
     setImportModalOpen,
     parseCsvFile,
     commitImport,
+    resetWeeklyForStudent,
+    resetWeeklyForCourse,
   } = useStudents();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -89,6 +92,7 @@ function StudentManagementApp() {
   const [showCourseBreakdown, setShowCourseBreakdown] = useState(false);
   const [showAttendanceBreakdown, setShowAttendanceBreakdown] = useState(false);
   const [showAttendanceUpload, setShowAttendanceUpload] = useState(false);
+  const [showMarksUpload, setShowMarksUpload] = useState(false);
   const [query, setQuery] = useState("");
   const [course, setCourse] = useState("All Courses");
   const [batch, setBatch] = useState("All Batches");
@@ -122,13 +126,14 @@ function StudentManagementApp() {
     });
     const sorted = [...filtered];
     if (sortBy === "Name (A-Z)") sorted.sort((a, b) => a.name.localeCompare(b.name));
-    else if (sortBy === "Name (Z-A)") sorted.sort((a, b) => b.name.localeCompare(a.name));
-    else if (sortBy === "Score (High-Low)") sorted.sort((a, b) => b.score - a.score);
-    else if (sortBy === "Score (Low-High)") sorted.sort((a, b) => a.score - b.score);
+    else if (sortBy === "Score (High-Low)")
+      sorted.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+    else if (sortBy === "Score (Low-High)")
+      sorted.sort((a, b) => (a.score ?? -1) - (b.score ?? -1));
     else if (sortBy === "Attendance (High-Low)") sorted.sort((a, b) => b.attendance - a.attendance);
     else if (sortBy === "Attendance (Low-High)") sorted.sort((a, b) => a.attendance - b.attendance);
     if (status === "Top Performers") {
-      return sorted.sort((a, b) => b.score - a.score).slice(0, 10);
+      return sorted.sort((a, b) => (b.score ?? -1) - (a.score ?? -1)).slice(0, 10);
     }
     return sorted;
   }, [students, query, course, batch, status, sortBy, teacher, timing]);
@@ -188,6 +193,7 @@ function StudentManagementApp() {
             onEdit={() => openEdit(selected.id)}
             onDelete={deleteStudent}
             onAddPayment={addPayment}
+            onResetWeekly={resetWeeklyForStudent}
           />
         ) : (
           <Dashboard
@@ -227,6 +233,8 @@ function StudentManagementApp() {
             onSelect={setSelectedId}
             onUpload={() => fileRef.current?.click()}
             onUploadAttendance={() => setShowAttendanceUpload(true)}
+            onUploadMarks={() => setShowMarksUpload(true)}
+            onResetWeeklyForCourse={resetWeeklyForCourse}
             uploadMessage={uploadMessage}
             onDelete={deleteStudent}
           />
@@ -249,6 +257,7 @@ function StudentManagementApp() {
           onCommit={commitImport}
         />
         <AttendanceUploadModal open={showAttendanceUpload} onOpenChange={setShowAttendanceUpload} />
+        <WeeklyMarksUploadModal open={showMarksUpload} onOpenChange={setShowMarksUpload} />
         <StudentModal
           key={`${editingId ?? "new"}-${modalOpen}`}
           open={modalOpen}

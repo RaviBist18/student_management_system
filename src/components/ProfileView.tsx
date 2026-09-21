@@ -45,6 +45,7 @@ export function ProfileView({
   onDelete,
   onAddPayment,
   onLogout,
+  onResetWeekly,
 }: {
   student: Student;
   onBack: () => void;
@@ -53,9 +54,11 @@ export function ProfileView({
   onDelete: (id: string) => void;
   onAddPayment: (id: string, payment: Omit<Payment, "id">) => void;
   onLogout: () => void;
+  onResetWeekly: (id: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState<"weekly" | "monthly" | "attendance" | "fees">("weekly");
   const [presentMode, setPresentMode] = useState(false);
+
   function exportSheet() {
     const rows = [
       ["Student", student.name],
@@ -193,7 +196,15 @@ export function ProfileView({
           </div>
         </section>
         <section className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr_1.5fr]">
-          <Meter value={student.score} label="Overall score" tone={performance(student.score)} />
+          {student.score !== null ? (
+            <Meter value={student.score} label="Overall score" tone={performance(student.score)} />
+          ) : (
+            <div className="grade-panel">
+              <p className="eyebrow">Overall score</p>
+              <span className="text-3xl font-bold text-muted-foreground">—</span>
+              <p className="text-sm text-muted-foreground">No marks uploaded yet</p>
+            </div>
+          )}
           <Meter
             value={student.attendance}
             label="Attendance rate"
@@ -203,9 +214,11 @@ export function ProfileView({
             <div>
               <p className="eyebrow">Academic standing</p>
               <div className="mt-3 flex items-end gap-3">
-                <span className="text-5xl font-bold">{student.grade}</span>
-                <span className={`score-badge ${performance(student.score)}`}>
-                  {student.status}
+                <span className="text-5xl font-bold">{student.grade || "—"}</span>
+                <span
+                  className={`score-badge ${student.score !== null ? performance(student.score) : ""}`}
+                >
+                  {student.status || "Pending"}
                 </span>
               </div>
             </div>
@@ -213,7 +226,33 @@ export function ProfileView({
           </div>
         </section>
         <section className="mt-5 content-panel">
-          <ProfileTabs tab={tab} setTab={setTab} />
+          <div className="flex items-center justify-between gap-3">
+            <ProfileTabs tab={tab} setTab={setTab} />
+            {tab === "weekly" && !presentMode && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Trash2 /> Reset Weekly Marks
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Reset {student.name}'s weekly marks?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This clears all weekly exam entries and resets the overall score to pending.
+                      This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => onResetWeekly(student.id)}>
+                      Reset
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
           <div className="pt-5">
             {tab === "weekly" && <WeeklyTable exams={student.weekly} />}{" "}
             {tab === "monthly" && <MonthlyCards exams={student.monthly} />}{" "}
@@ -223,6 +262,7 @@ export function ProfileView({
             )}
           </div>
         </section>
+
         <section className="remarks-box">
           <Quote />
           <div>

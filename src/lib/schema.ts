@@ -10,7 +10,6 @@ export const studentSchema = z.object({
     .trim()
     .regex(/^\+?[0-9 ]{7,18}$/, "Enter a valid phone number"),
   address: z.string().trim().min(3).max(140),
-  score: z.coerce.number().min(0).max(100),
   attendance: z.coerce.number().min(0).max(100).optional(),
   remarks: z.string().trim().min(4).max(500),
   teacher: z.string().trim().min(2).max(60),

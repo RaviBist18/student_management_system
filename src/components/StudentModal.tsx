@@ -104,7 +104,7 @@ export function StudentModal({
               <input
                 name={String(name)}
                 type={String(type)}
-                defaultValue={value}
+                defaultValue={value ?? ""}
                 readOnly={name === "course" && !!student}
                 maxLength={type === "text" ? 140 : undefined}
                 min={type === "number" ? 0 : undefined}

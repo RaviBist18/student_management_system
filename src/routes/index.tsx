@@ -85,6 +85,7 @@ function StudentManagementApp() {
     commitImport,
     resetWeeklyForStudent,
     resetWeeklyForCourse,
+    resetAttendanceForCourseMonth,
   } = useStudents();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -235,6 +236,7 @@ function StudentManagementApp() {
             onUploadAttendance={() => setShowAttendanceUpload(true)}
             onUploadMarks={() => setShowMarksUpload(true)}
             onResetWeeklyForCourse={resetWeeklyForCourse}
+            onResetAttendanceForCourseMonth={resetAttendanceForCourseMonth}
             uploadMessage={uploadMessage}
             onDelete={deleteStudent}
           />

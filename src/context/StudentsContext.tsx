@@ -46,6 +46,11 @@ type StudentsContextValue = {
   ) => Promise<{ success: number; failed: string[] }>;
   resetWeeklyForStudent: (studentId: string) => Promise<void>;
   resetWeeklyForCourse: (courseKey: string) => Promise<number>;
+  resetAttendanceForCourseMonth: (
+    courseKey: string,
+    bsYear: number,
+    bsMonth: number,
+  ) => Promise<number>;
 };
 const StudentsContext = createContext<StudentsContextValue | null>(null);
 
@@ -667,6 +672,30 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
     return targets.length;
   }
 
+  async function resetAttendanceForCourseMonth(
+    courseKey: string,
+    bsYear: number,
+    bsMonth: number,
+  ): Promise<number> {
+    const { data: deleted, error } = await supabase
+      .from("attendance_log")
+      .delete()
+      .eq("course_key", courseKey)
+      .eq("bs_year", bsYear)
+      .eq("bs_month", bsMonth)
+      .select("id");
+
+    if (error) {
+      toast.error("Failed to reset attendance");
+      return 0;
+    }
+
+    const count = deleted?.length ?? 0;
+    toast.success(`Attendance reset — ${count} record(s) removed`);
+    fetchStudents();
+    return count;
+  }
+
   return (
     <StudentsContext.Provider
       value={{
@@ -697,6 +726,7 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
         uploadWeeklyExamCsv,
         resetWeeklyForStudent,
         resetWeeklyForCourse,
+        resetAttendanceForCourseMonth,
       }}
     >
       {children}

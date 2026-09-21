@@ -32,6 +32,21 @@ import type { Student } from "@/lib/types";
 import { Brand } from "@/components/Brand";
 import { StudentCard } from "@/components/StudentCard";
 
+const BS_MONTHS = [
+  "Baishakh",
+  "Jestha",
+  "Ashadh",
+  "Shrawan",
+  "Bhadra",
+  "Ashoj",
+  "Kartik",
+  "Mangsir",
+  "Poush",
+  "Magh",
+  "Falgun",
+  "Chaitra",
+];
+
 export function Dashboard({
   students,
   visible,
@@ -58,6 +73,7 @@ export function Dashboard({
   onUploadAttendance,
   onUploadMarks,
   onResetWeeklyForCourse,
+  onResetAttendanceForCourseMonth,
   uploadMessage,
   onDelete,
   selectMode,
@@ -99,6 +115,11 @@ export function Dashboard({
   onUploadAttendance: () => void;
   onUploadMarks: () => void;
   onResetWeeklyForCourse: (courseKey: string) => Promise<number>;
+  onResetAttendanceForCourseMonth: (
+    courseKey: string,
+    bsYear: number,
+    bsMonth: number,
+  ) => Promise<number>;
   uploadMessage: string;
   onDelete: (id: string) => void;
   selectMode: boolean;
@@ -127,6 +148,9 @@ export function Dashboard({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [resetCourse, setResetCourse] = useState("MDCT");
+  const [attResetCourse, setAttResetCourse] = useState("MDCT");
+  const [attResetMonth, setAttResetMonth] = useState(1);
+  const [attResetYear, setAttResetYear] = useState(2082);
   const searchMatches =
     query.trim().length > 0
       ? students
@@ -415,6 +439,68 @@ export function Dashboard({
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={() => onResetWeeklyForCourse(resetCourse)}>
+                    Reset
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline">
+                  <Trash2 /> Reset Attendance (Course/Month)
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset attendance for a course and month</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Pick a course and BS month/year. This deletes all attendance records for that
+                    course in that month. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="grid gap-3">
+                  <label className="filter-control">
+                    <span>Course</span>
+                    <select
+                      value={attResetCourse}
+                      onChange={(e) => setAttResetCourse(e.target.value)}
+                    >
+                      {["MDCT", "Python", "Graphic Design", "Web Dev"].map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="filter-control">
+                    <span>Month (BS)</span>
+                    <select
+                      value={attResetMonth}
+                      onChange={(e) => setAttResetMonth(Number(e.target.value))}
+                    >
+                      {BS_MONTHS.map((m, i) => (
+                        <option key={m} value={i + 1}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="filter-control">
+                    <span>Year (BS)</span>
+                    <input
+                      type="number"
+                      value={attResetYear}
+                      onChange={(e) => setAttResetYear(Number(e.target.value))}
+                    />
+                  </label>
+                </div>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() =>
+                      onResetAttendanceForCourseMonth(attResetCourse, attResetYear, attResetMonth)
+                    }
+                  >
                     Reset
                   </AlertDialogAction>
                 </AlertDialogFooter>

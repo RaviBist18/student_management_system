@@ -20,7 +20,8 @@ type StudentsContextValue = {
   openEdit: (id: string) => void;
   save: (values: StudentFormValues) => void;
   deleteStudent: (id: string) => void;
-  addPayment: (id: string, payment: Omit<Payment, "id">) => void;
+  addPayment: (id: string, payment: Omit<Payment, "id" | "voided">) => void;
+  voidPayment: (paymentId: string, voided: boolean) => Promise<void>;
   selectMode: boolean;
   setSelectMode: (v: boolean) => void;
   selectedIds: Set<string>;
@@ -84,8 +85,8 @@ function mapRow(s: any, payments: any[]): Student {
     photo: s.photo ?? undefined,
     teacher: s.teacher ?? "",
     timing: s.timing ?? "",
-    admissionFee: Number(s.admission_fee),
-    courseFee: Number(s.course_fee),
+    admissionFee: s.admission_fee != null ? Number(s.admission_fee) : 0,
+    courseFee: s.course_fee != null ? Number(s.course_fee) : 0,
     payments: payments
       .filter((p) => p.student_id === s.id)
       .map((p) => ({
@@ -94,6 +95,7 @@ function mapRow(s: any, payments: any[]): Student {
         date: p.date,
         mode: p.mode,
         note: p.note ?? undefined,
+        voided: Boolean(p.voided),
       })),
   };
 }
@@ -124,7 +126,7 @@ async function generateRollNo(courseKey: string): Promise<number> {
   return (count ?? 0) + 1;
 }
 
-export function StudentsProvider({ children }: { children: ReactNode }) {
+export function StudentsProvider({ children, isOwner }: { children: ReactNode; isOwner: boolean }) {
   const [students, setStudents] = useState<Student[]>([]);
   const [studentsLoading, setStudentsLoading] = useState(true);
   const [dark, setDark] = useState(true);
@@ -136,20 +138,22 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
   const [importModalOpen, setImportModalOpen] = useState(false);
 
   async function fetchStudents() {
-    const { data: studentsData, error } = await supabase.from("students").select("*");
+    const { data: studentsData, error } = await supabase
+      .from(isOwner ? "students" : "students_handler_view")
+      .select("*");
     if (error) {
       toast.error("Failed to load students");
       setStudentsLoading(false);
       return;
     }
-    const { data: paymentsData } = await supabase.from("payments").select("*");
+    const paymentsData = isOwner ? (await supabase.from("payments").select("*")).data : [];
     setStudents((studentsData ?? []).map((s) => mapRow(s, paymentsData ?? [])));
     setStudentsLoading(false);
   }
 
   useEffect(() => {
     fetchStudents();
-  }, []);
+  }, [isOwner]);
 
   function openAdd() {
     setEditingId(null);
@@ -232,7 +236,7 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
     fetchStudents();
   }
 
-  async function addPayment(id: string, payment: Omit<Payment, "id">) {
+  async function addPayment(id: string, payment: Omit<Payment, "id" | "voided">) {
     const { error } = await supabase.from("payments").insert({
       student_id: id,
       amount: payment.amount,
@@ -245,6 +249,16 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
       return;
     }
     toast.success("Payment recorded");
+    fetchStudents();
+  }
+
+  async function voidPayment(paymentId: string, voided: boolean) {
+    const { error } = await supabase.from("payments").update({ voided }).eq("id", paymentId);
+    if (error) {
+      toast.error(voided ? "Failed to delete payment" : "Failed to restore payment");
+      return;
+    }
+    toast.success(voided ? "Payment deleted" : "Payment restored");
     fetchStudents();
   }
 
@@ -890,6 +904,7 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
         save,
         deleteStudent,
         addPayment,
+        voidPayment,
         selectMode,
         setSelectMode,
         selectedIds,

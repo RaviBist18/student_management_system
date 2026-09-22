@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Award,
@@ -47,22 +47,30 @@ export function ProfileView({
   onEdit,
   onDelete,
   onAddPayment,
+  onVoidPayment,
   onLogout,
   onResetWeekly,
   onResetMonthly,
+  isOwner,
 }: {
   student: Student;
   onBack: () => void;
   onHome?: () => void;
   onEdit: () => void;
   onDelete: (id: string) => void;
-  onAddPayment: (id: string, payment: Omit<Payment, "id">) => void;
+  onAddPayment: (id: string, payment: Omit<Payment, "id" | "voided">) => void;
+  onVoidPayment: (paymentId: string, voided: boolean) => void;
   onLogout: () => void;
   onResetWeekly: (id: string) => Promise<void>;
   onResetMonthly: (id: string) => Promise<void>;
+  isOwner: boolean;
 }) {
   const [tab, setTab] = useState<"weekly" | "monthly" | "attendance" | "fees">("weekly");
   const [presentMode, setPresentMode] = useState(false);
+
+  useEffect(() => {
+    if (tab === "fees" && !isOwner) setTab("weekly");
+  }, [tab, isOwner]);
 
   function exportSheet() {
     const rows = [
@@ -240,7 +248,7 @@ export function ProfileView({
         </section>
         <section className="mt-5 content-panel">
           <div className="flex items-center justify-between gap-3">
-            <ProfileTabs tab={tab} setTab={setTab} />
+            <ProfileTabs tab={tab} setTab={setTab} isOwner={isOwner} />
             {tab === "weekly" && !presentMode && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -293,8 +301,12 @@ export function ProfileView({
             {tab === "weekly" && <WeeklyTable exams={student.weekly} />}{" "}
             {tab === "monthly" && <MonthlyCards exams={student.monthly} />}{" "}
             {tab === "attendance" && <AttendanceGrid studentId={student.id} />}{" "}
-            {tab === "fees" && (
-              <FeesPanel student={student} onAddPayment={(p) => onAddPayment(student.id, p)} />
+            {tab === "fees" && isOwner && (
+              <FeesPanel
+                student={student}
+                onAddPayment={(p) => onAddPayment(student.id, p)}
+                onVoidPayment={onVoidPayment}
+              />
             )}
           </div>
         </section>

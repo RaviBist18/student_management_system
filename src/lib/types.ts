@@ -1,6 +1,13 @@
 export type Exam = { label: string; subject: string; score: number; max: number; date: string };
 
-export type Payment = { id: string; amount: number; date: string; mode: string; note?: string };
+export type Payment = {
+  id: string;
+  amount: number;
+  date: string;
+  mode: string;
+  note?: string;
+  voided: boolean;
+};
 
 export type Student = {
   id: string;

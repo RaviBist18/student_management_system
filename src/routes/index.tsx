@@ -43,7 +43,7 @@ export const Route = createFileRoute("/")({
 });
 
 function RouteWrapper() {
-  const { isAuthed, loading } = useAuth();
+  const { isAuthed, loading, isOwner } = useAuth();
 
   if (loading) {
     return <div className="min-h-screen bg-background" />;
@@ -53,13 +53,13 @@ function RouteWrapper() {
   }
 
   return (
-    <StudentsProvider>
-      <StudentManagementApp />
+    <StudentsProvider isOwner={isOwner}>
+      <StudentManagementApp isOwner={isOwner} />
     </StudentsProvider>
   );
 }
 
-function StudentManagementApp() {
+function StudentManagementApp({ isOwner }: { isOwner: boolean }) {
   const {
     students,
     studentsLoading,
@@ -73,6 +73,7 @@ function StudentManagementApp() {
     save,
     deleteStudent,
     addPayment,
+    voidPayment,
     selectMode,
     setSelectMode,
     selectedIds,
@@ -194,12 +195,14 @@ function StudentManagementApp() {
         ) : selected ? (
           <ProfileView
             student={selected}
+            isOwner={isOwner}
             onBack={goHome}
             onHome={goHome}
             onLogout={logout}
             onEdit={() => openEdit(selected.id)}
             onDelete={deleteStudent}
             onAddPayment={addPayment}
+            onVoidPayment={voidPayment}
             onResetWeekly={resetWeeklyForStudent}
             onResetMonthly={resetMonthlyForStudent}
           />

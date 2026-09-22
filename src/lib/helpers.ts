@@ -28,7 +28,8 @@ export const statusFor = (score: number) =>
   score >= 80 ? "Top Performer" : score < 65 ? "Needs Attention" : "Good";
 
 export const totalDue = (s: Student) => s.admissionFee + s.courseFee;
-export const totalPaid = (s: Student) => s.payments.reduce((a, p) => a + p.amount, 0);
+export const totalPaid = (s: Student) =>
+  s.payments.filter((p) => !p.voided).reduce((a, p) => a + p.amount, 0);
 export const balanceDue = (s: Student) => totalDue(s) - totalPaid(s);
 export const feeStatus = (s: Student) => {
   const bal = balanceDue(s);

@@ -1,5 +1,5 @@
 ﻿import { useEffect, useState } from "react";
-import { supabase, ALLOWED_EMAIL } from "@/lib/supabase";
+import { supabase, ALLOWED_EMAILS, OWNER_EMAIL } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
 
 export function useAuth() {
@@ -18,7 +18,7 @@ export function useAuth() {
   }, []);
 
   function handleSession(s: Session | null) {
-    if (s && s.user.email !== ALLOWED_EMAIL) {
+    if (s && !ALLOWED_EMAILS.includes(s.user.email ?? "")) {
       supabase.auth.signOut();
       setSession(null);
     } else {
@@ -26,5 +26,10 @@ export function useAuth() {
     }
   }
 
-  return { session, loading, isAuthed: !!session };
+  return {
+    session,
+    loading,
+    isAuthed: !!session,
+    isOwner: session?.user.email === OWNER_EMAIL,
+  };
 }

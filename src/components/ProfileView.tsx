@@ -6,8 +6,11 @@ import {
   CalendarDays,
   Download,
   FileSpreadsheet,
+  GraduationCap,
   LogOut,
+  MapPin,
   Pencil,
+  Phone,
   Quote,
   Trash2,
   UserRound,
@@ -46,6 +49,7 @@ export function ProfileView({
   onAddPayment,
   onLogout,
   onResetWeekly,
+  onResetMonthly,
 }: {
   student: Student;
   onBack: () => void;
@@ -55,6 +59,7 @@ export function ProfileView({
   onAddPayment: (id: string, payment: Omit<Payment, "id">) => void;
   onLogout: () => void;
   onResetWeekly: (id: string) => Promise<void>;
+  onResetMonthly: (id: string) => Promise<void>;
 }) {
   const [tab, setTab] = useState<"weekly" | "monthly" | "attendance" | "fees">("weekly");
   const [presentMode, setPresentMode] = useState(false);
@@ -186,10 +191,10 @@ export function ProfileView({
           </div>
           <div className="parent-grid">
             <Detail icon={UserRound} label="Father's name" value={student.father} />
-            <Detail icon={UserRound} label="Contact number" value={student.phone} />
-            <Detail icon={UserRound} label="Address" value={student.address} />
+            <Detail icon={Phone} label="Contact number" value={student.phone} />
+            <Detail icon={MapPin} label="Address" value={student.address} />
             <Detail
-              icon={UserRound}
+              icon={GraduationCap}
               label="School / prior education"
               value={`${student.school} · ${student.prior}`}
             />
@@ -205,11 +210,19 @@ export function ProfileView({
               <p className="text-sm text-muted-foreground">No marks uploaded yet</p>
             </div>
           )}
-          <Meter
-            value={student.attendance}
-            label="Attendance rate"
-            tone={performance(student.attendance)}
-          />
+          {student.attendance !== null ? (
+            <Meter
+              value={student.attendance}
+              label="Attendance rate"
+              tone={performance(student.attendance)}
+            />
+          ) : (
+            <div className="grade-panel">
+              <p className="eyebrow">Attendance rate</p>
+              <span className="text-3xl font-bold text-muted-foreground">—</span>
+              <p className="text-sm text-muted-foreground">No attendance recorded yet</p>
+            </div>
+          )}
           <div className="grade-panel">
             <div>
               <p className="eyebrow">Academic standing</p>
@@ -246,6 +259,29 @@ export function ProfileView({
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction onClick={() => onResetWeekly(student.id)}>
+                      Reset
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            {tab === "monthly" && !presentMode && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Trash2 /> Reset Monthly Marks
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Reset {student.name}'s monthly marks?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This clears all monthly exam entries for this student. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => onResetMonthly(student.id)}>
                       Reset
                     </AlertDialogAction>
                   </AlertDialogFooter>

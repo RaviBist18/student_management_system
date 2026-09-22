@@ -46,6 +46,14 @@ type StudentsContextValue = {
   ) => Promise<{ success: number; failed: string[] }>;
   resetWeeklyForStudent: (studentId: string) => Promise<void>;
   resetWeeklyForCourse: (courseKey: string) => Promise<number>;
+  uploadMonthlyExamCsv: (
+    courseKey: string,
+    file: File,
+    monthLabel: string,
+    examDate: string,
+  ) => Promise<{ success: number; failed: string[] }>;
+  resetMonthlyForStudent: (studentId: string) => Promise<void>;
+  resetMonthlyForCourse: (courseKey: string) => Promise<number>;
   resetAttendanceForCourseMonth: (
     courseKey: string,
     bsYear: number,
@@ -68,7 +76,7 @@ function mapRow(s: any, payments: any[]): Student {
     prior: s.prior ?? "",
     score: s.score === null ? null : Number(s.score),
     grade: s.grade ?? "",
-    attendance: Number(s.attendance),
+    attendance: s.attendance === null ? null : Number(s.attendance),
     status: s.status ?? "",
     remarks: s.remarks ?? "",
     weekly: s.weekly ?? [],
@@ -672,6 +680,177 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
     return targets.length;
   }
 
+  async function uploadMonthlyExamCsv(
+    courseKey: string,
+    file: File,
+    monthLabel: string,
+    examDate: string,
+  ): Promise<{ success: number; failed: string[] }> {
+    return new Promise((resolve) => {
+      Papa.parse<Record<string, string>>(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          const failed: string[] = [];
+          let success = 0;
+
+          if (!results.data.length) {
+            resolve({ success: 0, failed: ["CSV has no data rows"] });
+            return;
+          }
+
+          const byRoll = new Map<
+            number,
+            { rowNum: number; subject: string; marks: string; maxMarks: string }[]
+          >();
+
+          for (let i = 0; i < results.data.length; i++) {
+            const row = results.data[i];
+            if (!row) continue;
+            const rowNum = i + 2;
+            const rollNo = Number(row["roll_no"]);
+            const subject = (row["subject"] ?? "").trim();
+
+            if (!rollNo) {
+              failed.push(`Row ${rowNum}: invalid roll_no`);
+              continue;
+            }
+            if (!subject) {
+              failed.push(`Row ${rowNum}: missing subject`);
+              continue;
+            }
+
+            const entries = byRoll.get(rollNo) ?? [];
+            entries.push({
+              rowNum,
+              subject,
+              marks: row["marks"] ?? "",
+              maxMarks: row["max_marks"] ?? "",
+            });
+            byRoll.set(rollNo, entries);
+          }
+
+          for (const [rollNo, entries] of byRoll) {
+            const { data: student, error: lookupErr } = await supabase
+              .from("students")
+              .select("id, monthly")
+              .eq("course_key", courseKey)
+              .eq("roll_no", rollNo)
+              .maybeSingle();
+
+            if (lookupErr || !student) {
+              for (const e of entries) {
+                failed.push(`Row ${e.rowNum}: no student with roll_no ${rollNo} in ${courseKey}`);
+              }
+              continue;
+            }
+
+            let monthly: {
+              label: string;
+              subject: string;
+              score: number;
+              max: number;
+              date: string;
+            }[] = student.monthly ?? [];
+
+            for (const e of entries) {
+              const marks = Number(e.marks);
+              if (Number.isNaN(marks)) {
+                failed.push(`Row ${e.rowNum}: invalid marks for roll_no ${rollNo}`);
+                continue;
+              }
+              const maxMarks = e.maxMarks.trim() ? Number(e.maxMarks) : 50;
+              if (Number.isNaN(maxMarks) || maxMarks <= 0) {
+                failed.push(`Row ${e.rowNum}: invalid max_marks for roll_no ${rollNo}`);
+                continue;
+              }
+              if (marks > maxMarks) {
+                failed.push(
+                  `Row ${e.rowNum}: marks (${marks}) exceeds max_marks (${maxMarks}) for roll_no ${rollNo}`,
+                );
+                continue;
+              }
+
+              // upsert by (label, subject) — same-month re-upload overwrites, no duplicates
+              monthly = monthly.filter(
+                (m) =>
+                  !(
+                    m.label.trim().toLowerCase() === monthLabel.trim().toLowerCase() &&
+                    m.subject === e.subject
+                  ),
+              );
+              monthly.push({
+                label: monthLabel.trim(),
+                subject: e.subject,
+                score: marks,
+                max: maxMarks,
+                date: examDate,
+              });
+              success++;
+            }
+
+            // monthly does NOT touch students.score/grade/status — that stays weekly-only, locked earlier
+            const { error: updateErr } = await supabase
+              .from("students")
+              .update({ monthly })
+              .eq("id", student.id);
+
+            if (updateErr) {
+              for (const e of entries) failed.push(`Row ${e.rowNum}: ${updateErr.message}`);
+            }
+          }
+
+          fetchStudents();
+          resolve({ success, failed });
+        },
+        error: () => resolve({ success: 0, failed: ["Could not parse CSV file"] }),
+      });
+    });
+  }
+
+  async function resetMonthlyForStudent(studentId: string): Promise<void> {
+    const { error } = await supabase.from("students").update({ monthly: [] }).eq("id", studentId);
+    if (error) {
+      console.error("resetMonthlyForStudent error:", error);
+      toast.error("Failed to reset monthly marks");
+      return;
+    }
+    toast.success("Monthly marks reset");
+    fetchStudents();
+  }
+
+  async function resetMonthlyForCourse(courseKey: string): Promise<number> {
+    const { data: targets, error: lookupErr } = await supabase
+      .from("students")
+      .select("id")
+      .eq("course_key", courseKey);
+
+    if (lookupErr || !targets) {
+      toast.error("Failed to look up students for this course");
+      return 0;
+    }
+
+    if (!targets.length) {
+      toast.error("No students found in this course");
+      return 0;
+    }
+
+    const { error } = await supabase
+      .from("students")
+      .update({ monthly: [] })
+      .eq("course_key", courseKey);
+
+    if (error) {
+      console.error("resetMonthlyForCourse error:", error);
+      toast.error("Failed to reset monthly marks");
+      return 0;
+    }
+
+    toast.success(`Monthly marks reset for ${targets.length} student(s)`);
+    fetchStudents();
+    return targets.length;
+  }
+
   async function resetAttendanceForCourseMonth(
     courseKey: string,
     bsYear: number,
@@ -726,6 +905,9 @@ export function StudentsProvider({ children }: { children: ReactNode }) {
         uploadWeeklyExamCsv,
         resetWeeklyForStudent,
         resetWeeklyForCourse,
+        uploadMonthlyExamCsv,
+        resetMonthlyForStudent,
+        resetMonthlyForCourse,
         resetAttendanceForCourseMonth,
       }}
     >

@@ -15,7 +15,7 @@ export type Student = {
   prior: string;
   score: number | null;
   grade: string;
-  attendance: number;
+  attendance: number | null;
   status: string;
   remarks: string;
   weekly: Exam[];

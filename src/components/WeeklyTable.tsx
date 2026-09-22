@@ -95,12 +95,14 @@ export function WeeklyTable({ exams }: { exams: Exam[] }) {
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="exam-table" style={{ width: "100%", tableLayout: "fixed" }}>
           <colgroup>
-            <col style={{ width: "40%" }} />
+            <col style={{ width: "20%" }} />
             <col style={{ width: "30%" }} />
-            <col style={{ width: "30%" }} />
+            <col style={{ width: "25%" }} />
+            <col style={{ width: "25%" }} />
           </colgroup>
           <thead>
             <tr>
+              <th>Week</th>
               <th>Subject</th>
               <th>Marks</th>
               <th>Performance</th>
@@ -109,16 +111,22 @@ export function WeeklyTable({ exams }: { exams: Exam[] }) {
           <tbody>
             {groups.map((g) => (
               <>
-                <tr key={`${g.label}__${g.date}__header`}>
-                  <td colSpan={3} className="bg-muted/40 px-4 py-2 text-sm font-semibold">
-                    {g.label} — {fmtDateBS(g.date)}
-                  </td>
-                </tr>
-                {g.rows.map((e) => {
+                {g.rows.map((e, i) => {
                   const pending = e.score == null;
                   const pct = pending ? null : Math.round(((e.score as number) / e.max) * 100);
                   return (
                     <tr key={`${g.label}__${g.date}__${e.subject}`}>
+                      {i === 0 && (
+                        <td
+                          rowSpan={g.rows.length}
+                          className="bg-muted/40 align-top text-sm font-semibold"
+                        >
+                          {g.label}
+                          <div className="mt-1 text-xs font-normal text-muted-foreground">
+                            {fmtDateBS(g.date)}
+                          </div>
+                        </td>
+                      )}
                       <td>{e.subject}</td>
                       <td className="font-mono font-bold">
                         {pending ? "—" : `${e.score} / ${e.max}`}

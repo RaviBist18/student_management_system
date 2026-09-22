@@ -74,6 +74,8 @@ export function Dashboard({
   onUploadMarks,
   onResetWeeklyForCourse,
   onResetAttendanceForCourseMonth,
+  onUploadMonthlyMarks,
+  onResetMonthlyForCourse,
   uploadMessage,
   onDelete,
   selectMode,
@@ -120,6 +122,8 @@ export function Dashboard({
     bsYear: number,
     bsMonth: number,
   ) => Promise<number>;
+  onUploadMonthlyMarks: () => void;
+  onResetMonthlyForCourse: (courseKey: string) => Promise<number>;
   uploadMessage: string;
   onDelete: (id: string) => void;
   selectMode: boolean;
@@ -149,6 +153,7 @@ export function Dashboard({
   const [activeIndex, setActiveIndex] = useState(-1);
   const [resetCourse, setResetCourse] = useState("MDCT");
   const [attResetCourse, setAttResetCourse] = useState("MDCT");
+  const [monthlyResetCourse, setMonthlyResetCourse] = useState("MDCT");
   const [attResetMonth, setAttResetMonth] = useState(1);
   const [attResetYear, setAttResetYear] = useState(2082);
   const searchMatches =
@@ -174,7 +179,14 @@ export function Dashboard({
     ],
     [
       "Avg. attendance",
-      `${(students.reduce((a, s) => a + s.attendance, 0) / students.length).toFixed(2)}%`,
+      (() => {
+        const withData = students.filter(
+          (s): s is typeof s & { attendance: number } => s.attendance !== null,
+        );
+        return withData.length
+          ? `${(withData.reduce((a, s) => a + s.attendance, 0) / withData.length).toFixed(2)}%`
+          : "—";
+      })(),
       CalendarDays,
       "emerald",
       onAttendanceBreakdown,
@@ -410,44 +422,20 @@ export function Dashboard({
               <CalendarDays /> Upload Attendance
             </Button>
             <Button variant="outline" onClick={onUploadMarks}>
-              <FileSpreadsheet /> Upload Marks
+              <FileSpreadsheet /> Upload Marks(Weekly)
             </Button>
+            <Button variant="outline" onClick={onUploadMonthlyMarks}>
+              <FileSpreadsheet /> Upload Marks(Monthly)
+            </Button>
+          </div>
+          <div className="flex items-center gap-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline">
-                  <Trash2 /> Reset Weekly Marks (Course)
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Reset weekly marks for a course</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    Pick a course. This clears weekly exam data and resets the overall score for
-                    every student in that course. This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <label className="filter-control">
-                  <span>Course</span>
-                  <select value={resetCourse} onChange={(e) => setResetCourse(e.target.value)}>
-                    {["MDCT", "Python", "Graphic Design", "Web Dev"].map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => onResetWeeklyForCourse(resetCourse)}>
-                    Reset
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline">
-                  <Trash2 /> Reset Attendance (Course/Month)
+                <Button
+                  variant="outline"
+                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                >
+                  <Trash2 /> Reset Attendance
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -506,7 +494,82 @@ export function Dashboard({
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                >
+                  <Trash2 /> Reset Weekly Marks
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset weekly marks for a course</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Pick a course. This clears weekly exam data and resets the overall score for
+                    every student in that course. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <label className="filter-control">
+                  <span>Course</span>
+                  <select value={resetCourse} onChange={(e) => setResetCourse(e.target.value)}>
+                    {["MDCT", "Python", "Graphic Design", "Web Dev"].map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onResetWeeklyForCourse(resetCourse)}>
+                    Reset
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                >
+                  <Trash2 /> Reset Monthly Marks
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset monthly marks for a course</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Pick a course. This clears all monthly exam data for every student in that
+                    course, all months. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <label className="filter-control">
+                  <span>Course</span>
+                  <select
+                    value={monthlyResetCourse}
+                    onChange={(e) => setMonthlyResetCourse(e.target.value)}
+                  >
+                    {["MDCT", "Python", "Graphic Design", "Web Dev"].map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onResetMonthlyForCourse(monthlyResetCourse)}>
+                    Reset
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
+        </div>
+        <div className="mt-3 flex justify-end">
           <Button
             variant={selectMode ? "default" : "outline"}
             onClick={() => setSelectMode(!selectMode)}

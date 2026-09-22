@@ -60,7 +60,7 @@ export function PrintableReport({ student }: { student: Student }) {
               <td colSpan={2}>Overall Performance</td>
               <td>{student.score}%</td>
               <td>Attendance</td>
-              <td>{student.attendance}%</td>
+              <td>{student.attendance !== null ? `${student.attendance}%` : "—"}</td>
             </tr>
           </tbody>
         </table>

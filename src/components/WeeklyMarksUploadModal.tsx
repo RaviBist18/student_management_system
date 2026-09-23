@@ -12,8 +12,6 @@ import {
 import { useStudents } from "@/context/StudentsContext";
 import { toBik_euro, toGreg } from "bikram-sambat";
 
-const COURSES = ["MDCT", "Python", "Graphic Design", "Web Dev"];
-
 const BS_MONTHS = [
   "Baishakh",
   "Jestha",
@@ -36,8 +34,8 @@ export function WeeklyMarksUploadModal({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { uploadWeeklyExamCsv } = useStudents();
-  const [courseKey, setCourseKey] = useState<string>(COURSES[0]!);
+  const { uploadWeeklyExamCsv, courses } = useStudents();
+  const [courseKey, setCourseKey] = useState<string>(courses[0]?.course_key ?? "");
   const [weekLabel, setWeekLabel] = useState<string>("");
 
   const todayBS = toBik_euro(new Date().toISOString().split("T")[0]!);
@@ -107,11 +105,13 @@ export function WeeklyMarksUploadModal({
                 fontSize: "14px",
               }}
             >
-              {COURSES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              {courses
+                .filter((c) => c.active)
+                .map((c) => (
+                  <option key={c.course_key} value={c.course_key}>
+                    {c.course_name}
+                  </option>
+                ))}
             </select>
           </label>
 
@@ -134,7 +134,7 @@ export function WeeklyMarksUploadModal({
             />
           </label>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <label className="form-field">
               <span>Day (BS)</span>
               <input

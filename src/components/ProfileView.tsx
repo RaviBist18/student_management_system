@@ -247,7 +247,7 @@ export function ProfileView({
           </div>
         </section>
         <section className="mt-5 content-panel">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <ProfileTabs tab={tab} setTab={setTab} isOwner={isOwner} />
             {tab === "weekly" && !presentMode && (
               <AlertDialog>

@@ -34,34 +34,36 @@ export function ImportPreviewModal({
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto px-6 py-4">
-          <table className="exam-table">
-            <thead>
-              <tr>
-                <th>Row</th>
-                <th>Name</th>
-                <th>Student ID</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.rowNum}>
-                  <td>{r.rowNum}</td>
-                  <td>{r.raw["name"] || "—"}</td>
-                  <td className="font-mono">{r.raw["id"] || "—"}</td>
-                  <td>
-                    {r.errors.length === 0 ? (
-                      <span className="score-badge excellent">Valid</span>
-                    ) : (
-                      <span className="score-badge attention" title={r.errors.join("; ")}>
-                        {r.errors.length} error(s)
-                      </span>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="exam-table">
+              <thead>
+                <tr>
+                  <th>Row</th>
+                  <th>Name</th>
+                  <th>Student ID</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.rowNum}>
+                    <td>{r.rowNum}</td>
+                    <td>{r.raw["name"] || "—"}</td>
+                    <td className="font-mono">{r.raw["id"] || "—"}</td>
+                    <td>
+                      {r.errors.length === 0 ? (
+                        <span className="score-badge excellent">Valid</span>
+                      ) : (
+                        <span className="score-badge attention" title={r.errors.join("; ")}>
+                          {r.errors.length} error(s)
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {invalidCount > 0 && (
             <div className="mt-4 rounded-md border border-danger/30 bg-danger/10 p-3 text-xs text-danger">
               {rows

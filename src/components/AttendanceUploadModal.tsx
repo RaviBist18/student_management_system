@@ -12,8 +12,6 @@ import {
 import { useStudents } from "@/context/StudentsContext";
 import { toBik_euro } from "bikram-sambat";
 
-const COURSES = ["MDCT", "Python", "Graphic Design", "Web Dev"];
-
 export function AttendanceUploadModal({
   open,
   onOpenChange,
@@ -36,8 +34,8 @@ export function AttendanceUploadModal({
     "Chaitra",
   ];
 
-  const { uploadAttendanceCsv } = useStudents();
-  const [courseKey, setCourseKey] = useState<string>(COURSES[0]!);
+  const { uploadAttendanceCsv, courses } = useStudents();
+  const [courseKey, setCourseKey] = useState<string>(courses[0]?.course_key ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<{ success: number; failed: string[] } | null>(null);
@@ -93,11 +91,13 @@ export function AttendanceUploadModal({
                 fontSize: "14px",
               }}
             >
-              {COURSES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              {courses
+                .filter((c) => c.active)
+                .map((c) => (
+                  <option key={c.course_key} value={c.course_key}>
+                    {c.course_name}
+                  </option>
+                ))}
             </select>
           </label>
           <label className="form-field">

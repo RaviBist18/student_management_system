@@ -11,6 +11,7 @@ import { Dashboard } from "@/components/Dashboard";
 import { ProfileView } from "@/components/ProfileView";
 import { AnalyticsView } from "@/components/AnalyticsView";
 import { CourseBreakdownView } from "@/components/CourseBreakdownView";
+import { SettingsView } from "@/components/SettingsView";
 import { AttendanceBreakdownView } from "@/components/AttendanceBreakdownView";
 import { StudentModal } from "@/components/StudentModal";
 import { ImportPreviewModal } from "@/components/ImportPreviewModal";
@@ -95,6 +96,7 @@ function StudentManagementApp({ isOwner }: { isOwner: boolean }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [showCourseBreakdown, setShowCourseBreakdown] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showAttendanceBreakdown, setShowAttendanceBreakdown] = useState(false);
   const [showAttendanceUpload, setShowAttendanceUpload] = useState(false);
   const [showMarksUpload, setShowMarksUpload] = useState(false);
@@ -158,6 +160,7 @@ function StudentManagementApp({ isOwner }: { isOwner: boolean }) {
     setShowAnalytics(false);
     setShowCourseBreakdown(false);
     setShowAttendanceBreakdown(false);
+    setShowSettings(false);
     setSelectedId(null);
   }
   function logout() {
@@ -174,6 +177,8 @@ function StudentManagementApp({ isOwner }: { isOwner: boolean }) {
         <Toaster richColors position="top-right" />
         {showAnalytics ? (
           <AnalyticsView students={students} onBack={goHome} onHome={goHome} onLogout={logout} />
+        ) : showSettings ? (
+          <SettingsView onBack={goHome} onHome={goHome} onLogout={logout} />
         ) : showAttendanceBreakdown ? (
           <AttendanceBreakdownView
             students={students}
@@ -238,8 +243,10 @@ function StudentManagementApp({ isOwner }: { isOwner: boolean }) {
             dark={dark}
             setDark={setDark}
             onAdd={openAdd}
+            isOwner={isOwner}
             onAnalytics={() => setShowAnalytics(true)}
             onCourseBreakdown={() => setShowCourseBreakdown(true)}
+            onSettings={() => setShowSettings(true)}
             onAttendanceBreakdown={() => setShowAttendanceBreakdown(true)}
             onSelect={setSelectedId}
             onUpload={() => fileRef.current?.click()}

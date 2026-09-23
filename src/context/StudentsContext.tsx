@@ -2,11 +2,21 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { toast } from "sonner";
 import Papa from "papaparse";
 import type { Student, Payment, ImportRow } from "@/lib/types";
-import { FEE_MAP, CSV_COLUMNS } from "@/lib/types";
+import { CSV_COLUMNS } from "@/lib/types";
 import { studentSchema, type StudentFormValues } from "@/lib/schema";
 import { gradeFor, statusFor } from "@/lib/helpers";
 import { supabase } from "@/lib/supabase";
 import { toBik_euro, toGreg } from "bikram-sambat";
+
+type Course = {
+  course_key: string;
+  course_name: string;
+  admission_fee: number;
+  course_fee: number;
+  active: boolean;
+};
+type Teacher = { id: string; name: string; active: boolean };
+type Timing = { id: string; label: string; active: boolean };
 
 type StudentsContextValue = {
   students: Student[];
@@ -60,6 +70,21 @@ type StudentsContextValue = {
     bsYear: number,
     bsMonth: number,
   ) => Promise<number>;
+  courses: Course[];
+  teachers: Teacher[];
+  timings: Timing[];
+  currentBatch: string;
+  settingsLoading: boolean;
+  addCourse: (c: Omit<Course, "active">) => Promise<void>;
+  updateCourse: (courseKey: string, patch: Partial<Course>) => Promise<void>;
+  archiveCourse: (courseKey: string, active: boolean) => Promise<void>;
+  addTeacher: (name: string) => Promise<void>;
+  updateTeacher: (id: string, patch: Partial<Teacher>) => Promise<void>;
+  archiveTeacher: (id: string, active: boolean) => Promise<void>;
+  addTiming: (label: string) => Promise<void>;
+  updateTiming: (id: string, patch: Partial<Timing>) => Promise<void>;
+  archiveTiming: (id: string, active: boolean) => Promise<void>;
+  updateCurrentBatch: (value: string) => Promise<void>;
 };
 const StudentsContext = createContext<StudentsContextValue | null>(null);
 
@@ -136,6 +161,11 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [importRows, setImportRows] = useState<ImportRow[]>([]);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [timings, setTimings] = useState<Timing[]>([]);
+  const [currentBatch, setCurrentBatch] = useState<string>("2025");
+  const [settingsLoading, setSettingsLoading] = useState(true);
 
   async function fetchStudents() {
     const { data: studentsData, error } = await supabase
@@ -151,9 +181,27 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
     setStudentsLoading(false);
   }
 
+  async function fetchSettings() {
+    const [coursesRes, teachersRes, timingsRes, batchRes] = await Promise.all([
+      supabase.from("courses").select("*").order("course_name"),
+      supabase.from("teachers").select("*").order("name"),
+      supabase.from("timings").select("*").order("label"),
+      supabase.from("settings").select("*").eq("key", "current_batch").maybeSingle(),
+    ]);
+    if (coursesRes.data) setCourses(coursesRes.data as Course[]);
+    if (teachersRes.data) setTeachers(teachersRes.data as Teacher[]);
+    if (timingsRes.data) setTimings(timingsRes.data as Timing[]);
+    if (batchRes.data) setCurrentBatch(batchRes.data.value);
+    setSettingsLoading(false);
+  }
+
   useEffect(() => {
     fetchStudents();
   }, [isOwner]);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
 
   function openAdd() {
     setEditingId(null);
@@ -183,14 +231,13 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
       }
       toast.success("Student record updated");
     } else {
-      const key = values.course.toLowerCase().includes("python")
-        ? "Python"
-        : values.course.toLowerCase().includes("design")
-          ? "Graphic Design"
-          : values.course.toLowerCase().includes("web")
-            ? "Web Dev"
-            : "MDCT";
-      const fees = FEE_MAP[key] ?? { admission: 3000, course: 35000 };
+      const key = values.course;
+      const courseRow = courses.find((c) => c.course_key === key);
+      if (!courseRow) {
+        toast.error("Selected course not found — refresh and try again");
+        return;
+      }
+      const fees = { admission: courseRow.admission_fee, course: courseRow.course_fee };
       const newId = await generateStudentId();
       const rollNo = await generateRollNo(key);
       const bsYear = await getCurrentBsYear();
@@ -206,12 +253,12 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
         bs_year: bsYear,
         attendance: 0,
         course_key: key,
-        batch: "2025",
+        batch: currentBatch,
         score: null,
         grade: "",
         status: "",
-        school: "Not provided",
-        prior: "Not provided",
+        school: recordValuesWithoutId.school || "Not provided",
+        prior: recordValuesWithoutId.prior || "Not provided",
         photo: photo ?? null,
         admission_fee: fees.admission,
         course_fee: fees.course,
@@ -234,6 +281,100 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
     }
     toast.success(`${target?.name ?? "Student"} record deleted`);
     fetchStudents();
+  }
+
+  async function addCourse(c: Omit<Course, "active">) {
+    const { error } = await supabase.from("courses").insert(c);
+    if (error) {
+      toast.error("Failed to add course");
+      return;
+    }
+    toast.success("Course added");
+    fetchSettings();
+  }
+  async function updateCourse(courseKey: string, patch: Partial<Course>) {
+    const { error } = await supabase.from("courses").update(patch).eq("course_key", courseKey);
+    if (error) {
+      toast.error("Failed to update course");
+      return;
+    }
+    toast.success("Course updated");
+    fetchSettings();
+  }
+  async function archiveCourse(courseKey: string, active: boolean) {
+    const { error } = await supabase.from("courses").update({ active }).eq("course_key", courseKey);
+    if (error) {
+      toast.error("Failed to update course status");
+      return;
+    }
+    toast.success(active ? "Course restored" : "Course archived");
+    fetchSettings();
+  }
+
+  async function addTeacher(name: string) {
+    const { error } = await supabase.from("teachers").insert({ name });
+    if (error) {
+      toast.error("Failed to add teacher");
+      return;
+    }
+    toast.success("Teacher added");
+    fetchSettings();
+  }
+  async function updateTeacher(id: string, patch: Partial<Teacher>) {
+    const { error } = await supabase.from("teachers").update(patch).eq("id", id);
+    if (error) {
+      toast.error("Failed to update teacher");
+      return;
+    }
+    toast.success("Teacher updated");
+    fetchSettings();
+  }
+  async function archiveTeacher(id: string, active: boolean) {
+    const { error } = await supabase.from("teachers").update({ active }).eq("id", id);
+    if (error) {
+      toast.error("Failed to update teacher status");
+      return;
+    }
+    toast.success(active ? "Teacher restored" : "Teacher archived");
+    fetchSettings();
+  }
+
+  async function addTiming(label: string) {
+    const { error } = await supabase.from("timings").insert({ label });
+    if (error) {
+      toast.error("Failed to add timing");
+      return;
+    }
+    toast.success("Timing added");
+    fetchSettings();
+  }
+  async function updateTiming(id: string, patch: Partial<Timing>) {
+    const { error } = await supabase.from("timings").update(patch).eq("id", id);
+    if (error) {
+      toast.error("Failed to update timing");
+      return;
+    }
+    toast.success("Timing updated");
+    fetchSettings();
+  }
+  async function archiveTiming(id: string, active: boolean) {
+    const { error } = await supabase.from("timings").update({ active }).eq("id", id);
+    if (error) {
+      toast.error("Failed to update timing status");
+      return;
+    }
+    toast.success(active ? "Timing restored" : "Timing archived");
+    fetchSettings();
+  }
+
+  async function updateCurrentBatch(value: string) {
+    const { error } = await supabase.from("settings").update({ value }).eq("key", "current_batch");
+    if (error) {
+      toast.error("Failed to update batch");
+      return;
+    }
+    setCurrentBatch(value);
+    toast.success(`Batch updated to ${value}`);
   }
 
   async function addPayment(id: string, payment: Omit<Payment, "id" | "voided">) {
@@ -328,10 +469,27 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
               errors.push(`${issue.path[0]}: ${issue.message}`);
             }
           }
-          const rawId = raw["id"] ?? "";
-          const duplicate = students.some((s) => s.id === rawId);
-          if (duplicate) errors.push(`Duplicate student ID: ${rawId}`);
-          return { rowNum: i + 2, raw, errors, duplicate };
+
+          const rawCourse = (raw["course"] ?? "").trim().toLowerCase();
+          const courseMatch = courses.some(
+            (c) =>
+              c.active &&
+              (c.course_key.toLowerCase() === rawCourse ||
+                c.course_name.toLowerCase() === rawCourse),
+          );
+          if (rawCourse && !courseMatch) errors.push(`Unknown course: ${raw["course"]}`);
+
+          const rawTeacher = (raw["teacher"] ?? "").trim().toLowerCase();
+          const teacherMatch = teachers.some(
+            (t) => t.active && t.name.toLowerCase() === rawTeacher,
+          );
+          if (rawTeacher && !teacherMatch) errors.push(`Unknown teacher: ${raw["teacher"]}`);
+
+          const rawTiming = (raw["timing"] ?? "").trim().toLowerCase();
+          const timingMatch = timings.some((t) => t.active && t.label.toLowerCase() === rawTiming);
+          if (rawTiming && !timingMatch) errors.push(`Unknown timing: ${raw["timing"]}`);
+
+          return { rowNum: i + 2, raw, errors, duplicate: false };
         });
         setImportRows(rows);
         setImportModalOpen(true);
@@ -348,10 +506,13 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
       toast.error("No valid rows to import");
       return;
     }
-    const newStudents = valid.map((r) => {
+    const bsYear = await getCurrentBsYear();
+    const idCounts: Record<number, number> = {};
+    const rollCounts: Record<string, number> = {};
+    const newStudents = [];
+    for (const r of valid) {
       const v = r.raw;
       const name = v["name"] ?? "";
-      const id = v["id"] ?? "";
       const course = v["course"] ?? "";
       const father = v["father"] ?? "";
       const phone = v["phone"] ?? "";
@@ -359,38 +520,61 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
       const teacher = v["teacher"] ?? "";
       const timing = v["timing"] ?? "";
       const remarks = v["remarks"] ?? "";
-      const score = Number(v["score"] ?? 0);
-      const attendance = 0; // ignored — real value comes from attendance-log uploads only
-      const key = course.toLowerCase().includes("python")
-        ? "Python"
-        : course.toLowerCase().includes("design")
-          ? "Graphic Design"
-          : course.toLowerCase().includes("web")
-            ? "Web Dev"
-            : "MDCT";
-      const fees = FEE_MAP[key] ?? { admission: 3000, course: 35000 };
-      return {
-        id,
+      const school = v["school"] ?? "";
+      const prior = v["prior"] ?? "";
+      const matchedCourse = courses.find(
+        (c) =>
+          c.course_key.toLowerCase() === course.toLowerCase() ||
+          c.course_name.toLowerCase() === course.toLowerCase(),
+      );
+      const key = matchedCourse?.course_key ?? course; // unmatched CSV text kept as-is — Step 7 flags this as import error
+      const fees = matchedCourse
+        ? { admission: matchedCourse.admission_fee, course: matchedCourse.course_fee }
+        : { admission: 0, course: 0 };
+      if (idCounts[bsYear] === undefined) {
+        const { count } = await supabase
+          .from("students")
+          .select("id", { count: "exact", head: true })
+          .eq("bs_year", bsYear);
+        idCounts[bsYear] = count ?? 0;
+      }
+      idCounts[bsYear]++;
+      const newId = `ATI-${bsYear}-${String(idCounts[bsYear]).padStart(4, "0")}`;
+
+      if (rollCounts[key] === undefined) {
+        const { count } = await supabase
+          .from("students")
+          .select("id", { count: "exact", head: true })
+          .eq("course_key", key);
+        rollCounts[key] = count ?? 0;
+      }
+      rollCounts[key]++;
+      const rollNo = rollCounts[key];
+
+      newStudents.push({
+        id: newId,
+        roll_no: rollNo,
+        bs_year: bsYear,
         name,
         course,
         course_key: key,
         father,
         phone,
         address,
-        score,
-        attendance,
+        score: null,
+        attendance: 0,
         teacher,
         timing,
         remarks,
-        grade: gradeFor(score),
-        status: statusFor(score),
-        batch: "2025",
-        school: "Not provided",
-        prior: "Not provided",
+        grade: "",
+        status: "",
+        batch: currentBatch,
+        school: school || "Not provided",
+        prior: prior || "Not provided",
         admission_fee: fees.admission,
         course_fee: fees.course,
-      };
-    });
+      });
+    }
     const { error } = await supabase.from("students").insert(newStudents);
     if (error) {
       toast.error("Failed to import students");
@@ -923,6 +1107,21 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
         uploadMonthlyExamCsv,
         resetMonthlyForStudent,
         resetMonthlyForCourse,
+        courses,
+        teachers,
+        timings,
+        currentBatch,
+        settingsLoading,
+        addCourse,
+        updateCourse,
+        archiveCourse,
+        addTeacher,
+        updateTeacher,
+        archiveTeacher,
+        addTiming,
+        updateTiming,
+        archiveTiming,
+        updateCurrentBatch,
         resetAttendanceForCourseMonth,
       }}
     >

@@ -12,8 +12,6 @@ import {
 import { useStudents } from "@/context/StudentsContext";
 import { toBik_euro, toGreg } from "bikram-sambat";
 
-const COURSES = ["MDCT", "Python", "Graphic Design", "Web Dev"];
-
 const BS_MONTHS = [
   "Baishakh",
   "Jestha",
@@ -36,8 +34,8 @@ export function MonthlyMarksUploadModal({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const { uploadMonthlyExamCsv } = useStudents();
-  const [courseKey, setCourseKey] = useState<string>(COURSES[0]!);
+  const { uploadMonthlyExamCsv, courses } = useStudents();
+  const [courseKey, setCourseKey] = useState<string>(courses[0]?.course_key ?? "");
 
   const todayBS = toBik_euro(new Date().toISOString().split("T")[0]!);
   const [defaultYear, defaultMonth] = todayBS.split("-").map(Number);
@@ -105,11 +103,13 @@ export function MonthlyMarksUploadModal({
                 fontSize: "14px",
               }}
             >
-              {COURSES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              {courses
+                .filter((c) => c.active)
+                .map((c) => (
+                  <option key={c.course_key} value={c.course_key}>
+                    {c.course_name}
+                  </option>
+                ))}
             </select>
           </label>
 

@@ -59,13 +59,12 @@ export const NEPALI_MONTHS = [
 
 export const CSV_COLUMNS = [
   "name",
-  "id",
-  "course",
   "father",
   "phone",
   "address",
-  "score",
-  "attendance",
+  "school",
+  "prior",
+  "course",
   "teacher",
   "timing",
   "remarks",

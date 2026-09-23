@@ -31,8 +31,8 @@ export function AnalyticsView({
     const group = students.filter((s) => s.courseKey === key);
     return {
       course: key,
-      avgScore: Math.round(group.reduce((a, s) => a + s.score, 0) / group.length),
-      avgAttendance: Math.round(group.reduce((a, s) => a + s.attendance, 0) / group.length),
+      avgScore: Math.round(group.reduce((a, s) => a + (s.score ?? 0), 0) / group.length),
+      avgAttendance: Math.round(group.reduce((a, s) => a + (s.attendance ?? 0), 0) / group.length),
     };
   });
 
@@ -41,7 +41,7 @@ export function AnalyticsView({
     return {
       batch: `Batch ${batch}`,
       students: group.length,
-      avgScore: Math.round(group.reduce((a, s) => a + s.score, 0) / group.length),
+      avgScore: Math.round(group.reduce((a, s) => a + (s.score ?? 0), 0) / group.length),
     };
   });
 

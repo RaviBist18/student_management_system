@@ -55,7 +55,11 @@ export function StudentCard({
           <StudentAvatar student={student} className={`avatar avatar-${index % 4}`} />
         </div>
         <div className="flex items-center gap-2">
-          <span className={`score-badge ${performance(student.score)}`}>{student.score}%</span>
+          <span
+            className={`score-badge ${student.score !== null ? performance(student.score) : ""}`}
+          >
+            {student.score !== null ? `${student.score}%` : "—"}
+          </span>
           {!selectMode && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -95,7 +99,7 @@ export function StudentCard({
       <div className="grid grid-cols-2 gap-2">
         <div className="data-tile">
           <span>Overall</span>
-          <strong>{student.score}%</strong>
+          <strong>{student.score !== null ? `${student.score}%` : "—"}</strong>
         </div>
         <div className="data-tile">
           <span>Attendance</span>

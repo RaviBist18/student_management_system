@@ -6,7 +6,7 @@ import { Brand } from "@/components/Brand";
 
 function avg(list: Student[]) {
   if (!list.length) return 0;
-  return list.reduce((a, s) => a + s.attendance, 0) / list.length;
+  return list.reduce((a, s) => a + (s.attendance ?? 0), 0) / list.length;
 }
 
 export function AttendanceBreakdownView({

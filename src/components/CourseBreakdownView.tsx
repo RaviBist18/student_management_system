@@ -3,6 +3,7 @@ import { ArrowLeft, ChevronRight, LogOut, Search, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Student } from "@/lib/types";
 import { Brand } from "@/components/Brand";
+import { useStudents } from "@/context/StudentsContext";
 
 export function CourseBreakdownView({
   students,
@@ -23,13 +24,16 @@ export function CourseBreakdownView({
   const [studentSearch, setStudentSearch] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("All Teachers");
   const [expandedTeachers, setExpandedTeachers] = useState<Set<string>>(new Set());
-
-  const allCourses = Array.from(new Set(students.map((s) => s.courseKey))).map((key) => {
-    const group = students.filter((s) => s.courseKey === key);
-    const teacherSet = new Set(group.map((s) => s.teacher));
-    return { key, count: group.length, teacherCount: teacherSet.size };
-  });
-  const courses = allCourses.filter((c) =>
+  const { courses } = useStudents();
+  const activeCourseKeys = new Set(courses.filter((c) => c.active).map((c) => c.course_key));
+  const allCourses = Array.from(new Set(students.map((s) => s.courseKey)))
+    .filter((key) => activeCourseKeys.has(key))
+    .map((key) => {
+      const group = students.filter((s) => s.courseKey === key);
+      const teacherSet = new Set(group.map((s) => s.teacher));
+      return { key, count: group.length, teacherCount: teacherSet.size };
+    });
+  const filteredCourses = allCourses.filter((c) =>
     c.key.toLowerCase().includes(courseSearch.trim().toLowerCase()),
   );
 
@@ -198,9 +202,9 @@ export function CourseBreakdownView({
                 />
               </div>
             </section>
-            {courses.length ? (
+            {filteredCourses.length ? (
               <section className="grid gap-4">
-                {courses.map((c) => (
+                {filteredCourses.map((c) => (
                   <button
                     key={c.key}
                     type="button"

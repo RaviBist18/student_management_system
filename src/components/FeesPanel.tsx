@@ -131,55 +131,54 @@ export function FeesPanel({
         </div>
       </form>
 
-      <div className="overflow-x-auto">
-        <table className="exam-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Mode</th>
-              <th>Note</th>
-              <th>Amount</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {student.payments.length === 0 && (
+      {student.payments.length === 0 ? (
+        <p className="rounded-lg border border-border p-4 text-center text-sm text-muted-foreground">
+          No payments recorded yet
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="exam-table" style={{ minWidth: "600px" }}>
+            <thead>
               <tr>
-                <td colSpan={5} className="text-center text-muted-foreground">
-                  No payments recorded yet
-                </td>
+                <th>Date</th>
+                <th>Mode</th>
+                <th>Note</th>
+                <th>Amount</th>
+                <th></th>
               </tr>
-            )}
-            {student.payments.map((p) => (
-              <tr key={p.id} className={p.voided ? "opacity-50 line-through" : ""}>
-                <td>{p.date}</td>
-                <td>{p.mode}</td>
-                <td className="text-muted-foreground">{p.note ?? "—"}</td>
-                <td className="font-mono font-bold">Rs. {p.amount.toLocaleString()}</td>
-                <td>
-                  {p.voided ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirmTarget({ id: p.id, voided: false })}
-                    >
-                      <RotateCcw /> Restore
-                    </Button>
-                  ) : (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setConfirmTarget({ id: p.id, voided: true })}
-                    >
-                      <Trash2 /> Delete
-                    </Button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {student.payments.map((p) => (
+                <tr key={p.id} className={p.voided ? "opacity-50 line-through" : ""}>
+                  <td>{p.date}</td>
+                  <td>{p.mode}</td>
+                  <td className="text-muted-foreground">{p.note ?? "—"}</td>
+                  <td className="font-mono font-bold">Rs. {p.amount.toLocaleString()}</td>
+                  <td>
+                    {p.voided ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmTarget({ id: p.id, voided: false })}
+                      >
+                        <RotateCcw /> Restore
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConfirmTarget({ id: p.id, voided: true })}
+                      >
+                        <Trash2 /> Delete
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <PasswordConfirmDialog
         open={confirmTarget !== null}

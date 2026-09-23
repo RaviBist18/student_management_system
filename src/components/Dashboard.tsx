@@ -8,6 +8,7 @@ import {
   Moon,
   Plus,
   Search,
+  Settings,
   Sun,
   LogOut,
   Trash2,
@@ -31,6 +32,7 @@ import {
 import type { Student } from "@/lib/types";
 import { Brand } from "@/components/Brand";
 import { StudentCard } from "@/components/StudentCard";
+import { useStudents } from "@/context/StudentsContext";
 
 const BS_MONTHS = [
   "Baishakh",
@@ -67,7 +69,9 @@ export function Dashboard({
   dark,
   setDark,
   onAdd,
+  isOwner,
   onAnalytics,
+  onSettings,
   onSelect,
   onUpload,
   onUploadAttendance,
@@ -111,7 +115,9 @@ export function Dashboard({
   dark: boolean;
   setDark: (v: boolean) => void;
   onAdd: () => void;
+  isOwner: boolean;
   onAnalytics: () => void;
+  onSettings: () => void;
   onSelect: (id: string) => void;
   onUpload: () => void;
   onUploadAttendance: () => void;
@@ -140,6 +146,7 @@ export function Dashboard({
   onCourseBreakdown: () => void;
   onAttendanceBreakdown: () => void;
 }) {
+  const { courses, teachers, timings } = useStudents();
   function resetFiltersAndScroll() {
     setQuery("");
     setCourse("All Courses");
@@ -172,7 +179,13 @@ export function Dashboard({
     ],
     [
       "Active courses",
-      String(new Set(students.map((s) => s.courseKey)).size).padStart(2, "0"),
+      String(
+        new Set(
+          students
+            .map((s) => s.courseKey)
+            .filter((key) => courses.some((c) => c.course_key === key && c.active)),
+        ).size,
+      ).padStart(2, "0"),
       BookOpen,
       "violet",
       onCourseBreakdown,
@@ -303,6 +316,11 @@ export function Dashboard({
               <Plus /> Add New Student
             </Button>
 
+            {isOwner && (
+              <Button variant="outline" size="icon" title="Settings" onClick={onSettings}>
+                <Settings />
+              </Button>
+            )}
             <Button variant="outline" size="icon" title="Log out" onClick={onLogout}>
               <LogOut />
             </Button>
@@ -371,9 +389,14 @@ export function Dashboard({
                 "Course",
                 course,
                 setCourse,
-                ["All Courses", "MDCT", "Python", "Graphic Design", "Web Dev"],
+                ["All Courses", ...courses.filter((c) => c.active).map((c) => c.course_key)],
               ],
-              ["Batch", batch, setBatch, ["All Batches", "2024", "2025"]],
+              [
+                "Batch",
+                batch,
+                setBatch,
+                ["All Batches", ...Array.from(new Set(students.map((s) => s.batch))).sort()],
+              ],
               [
                 "Performance",
                 status,
@@ -384,9 +407,14 @@ export function Dashboard({
                 "Teacher",
                 teacher,
                 setTeacher,
-                ["All Teachers", "Suraj Bist", "Neha Bist", "Ravi Bist"],
+                ["All Teachers", ...teachers.filter((t) => t.active).map((t) => t.name)],
               ],
-              ["Timing", timing, setTiming, ["All Timings", "8-10 AM", "10-12 PM", "2-4 PM"]],
+              [
+                "Timing",
+                timing,
+                setTiming,
+                ["All Timings", ...timings.filter((t) => t.active).map((t) => t.label)],
+              ],
               [
                 "Sort by",
                 sortBy,
@@ -416,8 +444,8 @@ export function Dashboard({
             ))}
           </div>
         </section>
-        <div className="mt-6 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <Button variant="outline" onClick={onUploadAttendance}>
               <CalendarDays /> Upload Attendance
             </Button>
@@ -428,7 +456,7 @@ export function Dashboard({
               <FileSpreadsheet /> Upload Marks(Monthly)
             </Button>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
@@ -453,11 +481,13 @@ export function Dashboard({
                       value={attResetCourse}
                       onChange={(e) => setAttResetCourse(e.target.value)}
                     >
-                      {["MDCT", "Python", "Graphic Design", "Web Dev"].map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
+                      {courses
+                        .filter((c) => c.active || c.course_key === attResetCourse)
+                        .map((c) => (
+                          <option key={c.course_key} value={c.course_key}>
+                            {c.course_key}
+                          </option>
+                        ))}
                     </select>
                   </label>
                   <label className="filter-control">
@@ -514,11 +544,13 @@ export function Dashboard({
                 <label className="filter-control">
                   <span>Course</span>
                   <select value={resetCourse} onChange={(e) => setResetCourse(e.target.value)}>
-                    {["MDCT", "Python", "Graphic Design", "Web Dev"].map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+                    {courses
+                      .filter((c) => c.active || c.course_key === resetCourse)
+                      .map((c) => (
+                        <option key={c.course_key} value={c.course_key}>
+                          {c.course_key}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 <AlertDialogFooter>
@@ -552,11 +584,13 @@ export function Dashboard({
                     value={monthlyResetCourse}
                     onChange={(e) => setMonthlyResetCourse(e.target.value)}
                   >
-                    {["MDCT", "Python", "Graphic Design", "Web Dev"].map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
+                    {courses
+                      .filter((c) => c.active || c.course_key === monthlyResetCourse)
+                      .map((c) => (
+                        <option key={c.course_key} value={c.course_key}>
+                          {c.course_key}
+                        </option>
+                      ))}
                   </select>
                 </label>
                 <AlertDialogFooter>

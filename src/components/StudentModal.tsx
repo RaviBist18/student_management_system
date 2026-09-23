@@ -9,6 +9,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useStudents } from "@/context/StudentsContext";
 import type { Student } from "@/lib/types";
 import { studentSchema, type StudentFormValues } from "@/lib/schema";
 
@@ -25,6 +33,10 @@ export function StudentModal({
 }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [photo, setPhoto] = useState(student?.photo);
+  const { courses, teachers, timings } = useStudents();
+  const [courseKey, setCourseKey] = useState(student?.courseKey ?? "");
+  const [teacher, setTeacher] = useState(student?.teacher ?? "");
+  const [timing, setTiming] = useState(student?.timing ?? "");
   function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -93,11 +105,12 @@ export function StudentModal({
           </label>
           {[
             ["name", "Student name", student?.name, "text"],
-            ["course", "Course", student?.course, "text"],
             ["father", "Father's name", student?.father, "text"],
             ["phone", "Phone", student?.phone, "tel"],
             ["address", "Address", student?.address, "text"],
-            ["score", "Overall marks (%)", student?.score, "number"],
+            ["school", "School", student?.school, "text"],
+            ["prior", "Prior education", student?.prior, "text"],
+            ...(student ? [["score", "Overall marks (%)", student?.score, "number"]] : []),
           ].map(([name, label, value, type]) => (
             <label className="form-field" key={String(name)}>
               <span>{label}</span>
@@ -105,7 +118,6 @@ export function StudentModal({
                 name={String(name)}
                 type={String(type)}
                 defaultValue={value ?? ""}
-                readOnly={name === "course" && !!student}
                 maxLength={type === "text" ? 140 : undefined}
                 min={type === "number" ? 0 : undefined}
                 max={type === "number" ? 100 : undefined}
@@ -114,42 +126,59 @@ export function StudentModal({
             </label>
           ))}
           <label className="form-field">
+            <span>Course</span>
+            <input type="hidden" name="course" value={courseKey} />
+            <Select value={courseKey} onValueChange={setCourseKey} disabled={!!student}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select course" />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card text-foreground">
+                {courses
+                  .filter((c) => c.active || c.course_key === courseKey)
+                  .map((c) => (
+                    <SelectItem key={c.course_key} value={c.course_key}>
+                      {c.course_name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            {errors["course"] && <small>{errors["course"]}</small>}
+          </label>
+          <label className="form-field">
             <span>Teacher</span>
-            <select
-              name="teacher"
-              defaultValue={student?.teacher ?? "Suraj Bist"}
-              style={{
-                width: "100%",
-                borderRadius: "6px",
-                border: "1px solid #d1d5db",
-                background: "#f3f4f6",
-                padding: "8px 12px",
-                fontSize: "14px",
-              }}
-            >
-              <option>Suraj Bist</option>
-              <option>Neha Bist</option>
-              <option>Ravi Bist</option>
-            </select>
+            <input type="hidden" name="teacher" value={teacher} />
+            <Select value={teacher} onValueChange={setTeacher}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select teacher" />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card text-foreground">
+                {teachers
+                  .filter((t) => t.active || t.name === teacher)
+                  .map((t) => (
+                    <SelectItem key={t.id} value={t.name}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </label>
           <label className="form-field">
             <span>Class timing</span>
-            <select
-              name="timing"
-              defaultValue={student?.timing ?? "8-10 AM"}
-              style={{
-                width: "100%",
-                borderRadius: "6px",
-                border: "1px solid #d1d5db",
-                background: "#f8fafc",
-                padding: "8px 12px",
-                fontSize: "14px",
-              }}
-            >
-              <option>8-10 AM</option>
-              <option>10-12 PM</option>
-              <option>2-4 PM</option>
-            </select>
+            <input type="hidden" name="timing" value={timing} />
+            <Select value={timing} onValueChange={setTiming}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select timing" />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card text-foreground">
+                {timings
+                  .filter((t) => t.active || t.label === timing)
+                  .map((t) => (
+                    <SelectItem key={t.id} value={t.label}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
           </label>
           <label className="form-field sm:col-span-2">
             <span>Instructor remarks</span>

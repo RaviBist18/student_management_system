@@ -211,7 +211,9 @@ export function Dashboard({
       "amber",
       () => {
         setStatus("Top Performers");
-        document.getElementById("student-list-section")?.scrollIntoView({ behavior: "smooth" });
+        requestAnimationFrame(() => {
+          document.getElementById("student-cards-grid")?.scrollIntoView({ behavior: "smooth" });
+        });
       },
     ],
   ] as Array<[string, string, typeof Users, string, (() => void) | null]>;

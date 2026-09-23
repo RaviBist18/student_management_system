@@ -230,6 +230,14 @@ export function Dashboard({
               >
                 {dark ? <Sun /> : <Moon />}
               </Button>
+              <Button variant="outline" size="icon" title="Upload CSV" onClick={onUpload}>
+                <Upload />
+              </Button>
+              {isOwner && (
+                <Button variant="outline" size="icon" title="Settings" onClick={onSettings}>
+                  <Settings />
+                </Button>
+              )}
               <Button variant="outline" size="icon" title="Log out" onClick={onLogout}>
                 <LogOut />
               </Button>

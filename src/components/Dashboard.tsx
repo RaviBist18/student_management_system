@@ -154,7 +154,7 @@ export function Dashboard({
     setStatus("All Statuses");
     setTeacher("All Teachers");
     setTiming("All Timings");
-    document.getElementById("student-list-section")?.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("student-cards-grid")?.scrollIntoView({ behavior: "smooth" });
   }
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -650,7 +650,10 @@ export function Dashboard({
         )}
         {visible.length ? (
           <>
-            <section className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <section
+              id="student-cards-grid"
+              className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
+            >
               {pageItems.map((student, index) => (
                 <StudentCard
                   key={student.id}

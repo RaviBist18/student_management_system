@@ -160,6 +160,10 @@
     border-color: var(--color-border);
   }
 
+  #student-list-section {
+    scroll-margin-top: 80px;
+  }
+
   html,
   body {
     overflow-x: hidden;

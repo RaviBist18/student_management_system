@@ -15,7 +15,8 @@ import {
   Upload,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import { ExportDialog } from "@/components/ExportDialog";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -163,6 +164,20 @@ export function Dashboard({
   const [monthlyResetCourse, setMonthlyResetCourse] = useState("MDCT");
   const [attResetMonth, setAttResetMonth] = useState(1);
   const [attResetYear, setAttResetYear] = useState(2082);
+
+  useEffect(() => {
+    if (
+      course !== "All Courses" ||
+      batch !== "All Batches" ||
+      status !== "All Statuses" ||
+      teacher !== "All Teachers" ||
+      timing !== "All Timings"
+    ) {
+      document
+        .getElementById("student-cards-grid")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [course, batch, status, teacher, timing]);
   const searchMatches =
     query.trim().length > 0
       ? students
@@ -235,11 +250,9 @@ export function Dashboard({
               <Button variant="outline" size="icon" title="Upload CSV" onClick={onUpload}>
                 <Upload />
               </Button>
-              {isOwner && (
-                <Button variant="outline" size="icon" title="Settings" onClick={onSettings}>
-                  <Settings />
-                </Button>
-              )}
+              <Button variant="outline" size="icon" title="Settings" onClick={onSettings}>
+                <Settings />
+              </Button>
               <Button variant="outline" size="icon" title="Log out" onClick={onLogout}>
                 <LogOut />
               </Button>
@@ -322,15 +335,11 @@ export function Dashboard({
             <Button variant="outline" onClick={onUpload}>
               <Upload /> Upload CSV
             </Button>
-            <Button onClick={onAdd}>
-              <Plus /> Add New Student
-            </Button>
+            <ExportDialog students={students} />
 
-            {isOwner && (
-              <Button variant="outline" size="icon" title="Settings" onClick={onSettings}>
-                <Settings />
-              </Button>
-            )}
+            <Button variant="outline" size="icon" title="Settings" onClick={onSettings}>
+              <Settings />
+            </Button>
             <Button variant="outline" size="icon" title="Log out" onClick={onLogout}>
               <LogOut />
             </Button>
@@ -382,16 +391,26 @@ export function Dashboard({
         </section>
         <section
           id="student-list-section"
-          className="mt-10 flex flex-col gap-6 border-y border-border py-6 lg:flex-row lg:items-start"
+          className="sticky top-[73px] z-20 mt-10 flex flex-col gap-6 border-y border-border bg-background py-6 lg:flex-row lg:items-start"
         >
           <div>
-            <h2 className="text-lg font-bold">Student records</h2>
+            <h2
+              className="text-lg font-bold cursor-pointer hover:text-primary transition"
+              onClick={resetFiltersAndScroll}
+            >
+              Student records
+            </h2>
             <p className="text-sm text-muted-foreground">
               Showing {visible.length} of {students.length} students
             </p>
-            <Button variant="outline" onClick={onAnalytics} className="mt-3">
-              <BarChart3 /> Analytics
-            </Button>
+            <div className="mt-3 flex flex-wrap gap-5">
+              <Button onClick={onAdd}>
+                <Plus /> Add New Student
+              </Button>
+              <Button variant="outline" onClick={onAnalytics}>
+                <BarChart3 /> Analytics
+              </Button>
+            </div>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:ml-auto lg:w-auto lg:grid-cols-3">
             {[

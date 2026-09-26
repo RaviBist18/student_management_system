@@ -72,7 +72,7 @@ export function ProfileView({
     if (tab === "fees" && !isOwner) setTab("weekly");
   }, [tab, isOwner]);
 
-  function exportSheet() {
+  async function exportSheet() {
     const rows = [
       ["Student", student.name],
       ["Student ID", student.id],
@@ -99,17 +99,36 @@ export function ProfileView({
     const csv = rows
       .map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(","))
       .join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const filename = `${student.id}-performance.csv`;
+
+    if ("showSaveFilePicker" in window) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: "CSV file", accept: { "text/csv": [".csv"] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        throw err;
+      }
+    }
+
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${student.id}-performance.csv`;
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
   }
   return (
     <div className="profile-shell">
       {!presentMode && (
-        <header className="border-b border-border bg-header/90 backdrop-blur-xl print:hidden">
+        <header className="sticky top-0 z-30 border-b border-border bg-header/90 backdrop-blur-xl print:hidden">
           <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-5 py-4 lg:px-8">
             <Brand onClick={onHome} />
             <div className="ml-auto flex gap-2">

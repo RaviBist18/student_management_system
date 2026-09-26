@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useStudents } from "@/context/StudentsContext";
 import type { Student } from "@/lib/types";
-import { studentSchema, type StudentFormValues } from "@/lib/schema";
+import { studentSchema, PRIOR_EDUCATION_OPTIONS, type StudentFormValues } from "@/lib/schema";
 
 export function StudentModal({
   open,
@@ -37,6 +37,11 @@ export function StudentModal({
   const [courseKey, setCourseKey] = useState(student?.courseKey ?? "");
   const [teacher, setTeacher] = useState(student?.teacher ?? "");
   const [timing, setTiming] = useState(student?.timing ?? "");
+  const [prior, setPrior] = useState(student?.prior ?? "");
+  const [hasSubmitted, setHasSubmitted] = useState(false);
+
+  const REQUIRED = new Set(["name", "father", "phone", "address", "course", "teacher", "timing"]);
+
   function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -57,6 +62,28 @@ export function StudentModal({
     };
     reader.readAsDataURL(file);
   }
+
+  function validateField(name: string, value: string) {
+    if (!value.trim() && !hasSubmitted) {
+      setErrors((current) => {
+        const next = { ...current };
+        delete next[name];
+        return next;
+      });
+      return;
+    }
+    const shape = studentSchema.shape as Record<string, { safeParse: (v: unknown) => any }>;
+    const fieldSchema = shape[name];
+    if (!fieldSchema) return;
+    const result = fieldSchema.safeParse(value);
+    setErrors((current) => {
+      const next = { ...current };
+      if (result.success) delete next[name];
+      else next[name] = result.error.issues[0]?.message ?? "Invalid value";
+      return next;
+    });
+  }
+
   const key = `${student?.id ?? "new"}-${open}`;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,6 +102,7 @@ export function StudentModal({
             delete data["photoFile"];
             const parsed = studentSchema.safeParse(data);
             if (!parsed.success) {
+              setHasSubmitted(true);
               setErrors(
                 Object.fromEntries(
                   parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]),
@@ -109,26 +137,37 @@ export function StudentModal({
             ["phone", "Phone", student?.phone, "tel"],
             ["address", "Address", student?.address, "text"],
             ["school", "School", student?.school, "text"],
-            ["prior", "Prior education", student?.prior, "text"],
             ...(student ? [["score", "Overall marks (%)", student?.score, "number"]] : []),
           ].map(([name, label, value, type]) => (
             <label className="form-field" key={String(name)}>
-              <span>{label}</span>
+              <span>
+                {label}
+                {REQUIRED.has(String(name)) && " *"}
+              </span>
               <input
                 name={String(name)}
                 type={String(type)}
                 defaultValue={value ?? ""}
-                maxLength={type === "text" ? 140 : undefined}
+                maxLength={name === "phone" ? 10 : type === "text" ? 140 : undefined}
                 min={type === "number" ? 0 : undefined}
                 max={type === "number" ? 100 : undefined}
+                inputMode={name === "phone" ? "numeric" : undefined}
+                onBlur={(e) => validateField(String(name), e.target.value)}
               />
               {errors[String(name)] && <small>{errors[String(name)]}</small>}
             </label>
           ))}
           <label className="form-field">
-            <span>Course</span>
+            <span>Course *</span>
             <input type="hidden" name="course" value={courseKey} />
-            <Select value={courseKey} onValueChange={setCourseKey} disabled={!!student}>
+            <Select
+              value={courseKey}
+              onValueChange={(v) => {
+                setCourseKey(v);
+                validateField("course", v);
+              }}
+              disabled={!!student}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select course" />
               </SelectTrigger>
@@ -145,9 +184,15 @@ export function StudentModal({
             {errors["course"] && <small>{errors["course"]}</small>}
           </label>
           <label className="form-field">
-            <span>Teacher</span>
+            <span>Teacher *</span>
             <input type="hidden" name="teacher" value={teacher} />
-            <Select value={teacher} onValueChange={setTeacher}>
+            <Select
+              value={teacher}
+              onValueChange={(v) => {
+                setTeacher(v);
+                validateField("teacher", v);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select teacher" />
               </SelectTrigger>
@@ -161,11 +206,18 @@ export function StudentModal({
                   ))}
               </SelectContent>
             </Select>
+            {errors["teacher"] && <small>{errors["teacher"]}</small>}
           </label>
           <label className="form-field">
-            <span>Class timing</span>
+            <span>Class timing *</span>
             <input type="hidden" name="timing" value={timing} />
-            <Select value={timing} onValueChange={setTiming}>
+            <Select
+              value={timing}
+              onValueChange={(v) => {
+                setTiming(v);
+                validateField("timing", v);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select timing" />
               </SelectTrigger>
@@ -179,6 +231,24 @@ export function StudentModal({
                   ))}
               </SelectContent>
             </Select>
+            {errors["timing"] && <small>{errors["timing"]}</small>}
+          </label>
+          <label className="form-field">
+            <span>Prior education</span>
+            <input type="hidden" name="prior" value={prior} />
+            <Select value={prior} onValueChange={setPrior}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select prior education" />
+              </SelectTrigger>
+              <SelectContent className="border-border bg-card text-foreground">
+                {PRIOR_EDUCATION_OPTIONS.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors["prior"] && <small>{errors["prior"]}</small>}
           </label>
           <label className="form-field sm:col-span-2">
             <span>Instructor remarks</span>

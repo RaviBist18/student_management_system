@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import Papa from "papaparse";
 import type { Student, Payment, ImportRow } from "@/lib/types";
 import { CSV_COLUMNS } from "@/lib/types";
-import { studentSchema, type StudentFormValues } from "@/lib/schema";
+import { studentSchema, PRIOR_EDUCATION_OPTIONS, type StudentFormValues } from "@/lib/schema";
 import { gradeFor, statusFor } from "@/lib/helpers";
 import { supabase } from "@/lib/supabase";
 import { toBik_euro, toGreg } from "bikram-sambat";
@@ -78,12 +78,15 @@ type StudentsContextValue = {
   addCourse: (c: Omit<Course, "active">) => Promise<void>;
   updateCourse: (courseKey: string, patch: Partial<Course>) => Promise<void>;
   archiveCourse: (courseKey: string, active: boolean) => Promise<void>;
+  deleteCourse: (courseKey: string) => Promise<void>;
   addTeacher: (name: string) => Promise<void>;
   updateTeacher: (id: string, patch: Partial<Teacher>) => Promise<void>;
   archiveTeacher: (id: string, active: boolean) => Promise<void>;
+  deleteTeacher: (id: string) => Promise<void>;
   addTiming: (label: string) => Promise<void>;
   updateTiming: (id: string, patch: Partial<Timing>) => Promise<void>;
   archiveTiming: (id: string, active: boolean) => Promise<void>;
+  deleteTiming: (id: string) => Promise<void>;
   updateCurrentBatch: (value: string) => Promise<void>;
 };
 const StudentsContext = createContext<StudentsContextValue | null>(null);
@@ -91,6 +94,7 @@ const StudentsContext = createContext<StudentsContextValue | null>(null);
 function mapRow(s: any, payments: any[]): Student {
   return {
     id: s.id,
+    rollNo: s.roll_no ?? 0,
     name: s.name,
     course: s.course,
     courseKey: s.course_key,
@@ -310,6 +314,15 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
     toast.success(active ? "Course restored" : "Course archived");
     fetchSettings();
   }
+  async function deleteCourse(courseKey: string) {
+    const { error } = await supabase.from("courses").delete().eq("course_key", courseKey);
+    if (error) {
+      toast.error("Failed to delete course");
+      return;
+    }
+    toast.success("Course deleted permanently");
+    fetchSettings();
+  }
 
   async function addTeacher(name: string) {
     const { error } = await supabase.from("teachers").insert({ name });
@@ -338,6 +351,15 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
     toast.success(active ? "Teacher restored" : "Teacher archived");
     fetchSettings();
   }
+  async function deleteTeacher(id: string) {
+    const { error } = await supabase.from("teachers").delete().eq("id", id);
+    if (error) {
+      toast.error("Failed to delete teacher");
+      return;
+    }
+    toast.success("Teacher deleted permanently");
+    fetchSettings();
+  }
 
   async function addTiming(label: string) {
     const { error } = await supabase.from("timings").insert({ label });
@@ -364,6 +386,15 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
       return;
     }
     toast.success(active ? "Timing restored" : "Timing archived");
+    fetchSettings();
+  }
+  async function deleteTiming(id: string) {
+    const { error } = await supabase.from("timings").delete().eq("id", id);
+    if (error) {
+      toast.error("Failed to delete timing");
+      return;
+    }
+    toast.success("Timing deleted permanently");
     fetchSettings();
   }
 
@@ -1115,12 +1146,15 @@ export function StudentsProvider({ children, isOwner }: { children: ReactNode; i
         addCourse,
         updateCourse,
         archiveCourse,
+        deleteCourse,
         addTeacher,
         updateTeacher,
         archiveTeacher,
+        deleteTeacher,
         addTiming,
         updateTiming,
         archiveTiming,
+        deleteTiming,
         updateCurrentBatch,
         resetAttendanceForCourseMonth,
       }}

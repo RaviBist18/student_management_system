@@ -162,6 +162,14 @@ function StudentManagementApp({ isOwner }: { isOwner: boolean }) {
     setShowAttendanceBreakdown(false);
     setShowSettings(false);
     setSelectedId(null);
+    setQuery("");
+    setCourse("All Courses");
+    setBatch("All Batches");
+    setStatus("All Statuses");
+    setTeacher("All Teachers");
+    setTiming("All Timings");
+    setSortBy("Name (A-Z)");
+    setPage(1);
   }
   function logout() {
     supabase.auth.signOut();
